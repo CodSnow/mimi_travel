@@ -4,6 +4,21 @@ import type {
   DriverMatchRequest,
   DriverMatchResponse,
 } from '../internal-dto/matching.js';
+import type {
+  AcceptOfferRequest,
+  AcceptOfferResponse,
+  DemandCancelRequest,
+  DemandCreateRequest,
+  DemandListResponse,
+  DemandResponse,
+  OfferCreateRequest,
+  OfferListResponse,
+  OfferResponse,
+  OrderDetailResponse,
+  OrderListResponse,
+  OrderResponse,
+  OrderTransitionRequest,
+} from '../internal-dto/marketplace.js';
 import type { OrderSnapshotRequest, OrderSnapshotResponse } from '../internal-dto/orders.js';
 import type { PricingQuoteRequest, PricingQuoteResponse } from '../internal-dto/pricing.js';
 import type {
@@ -57,6 +72,79 @@ export class PythonClient {
     return this.post('/internal/orders/snapshot', payload);
   }
 
+  async createDemand(payload: DemandCreateRequest): Promise<DemandResponse> {
+    return this.post('/internal/marketplace/demands', payload);
+  }
+
+  async listDemands(query: Record<string, string | undefined>): Promise<DemandListResponse> {
+    return this.get('/internal/marketplace/demands', query);
+  }
+
+  async getDemand(demandId: string): Promise<DemandResponse> {
+    return this.get(`/internal/marketplace/demands/${demandId}`);
+  }
+
+  async cancelDemand(demandId: string, payload: DemandCancelRequest): Promise<DemandResponse> {
+    return this.post(`/internal/marketplace/demands/${demandId}/cancel`, payload);
+  }
+
+  async createOffer(demandId: string, payload: OfferCreateRequest): Promise<OfferResponse> {
+    return this.post(`/internal/marketplace/demands/${demandId}/offers`, payload);
+  }
+
+  async listOffers(demandId: string): Promise<OfferListResponse> {
+    return this.get(`/internal/marketplace/demands/${demandId}/offers`);
+  }
+
+  async acceptOffer(offerId: string, payload: AcceptOfferRequest): Promise<AcceptOfferResponse> {
+    return this.post(`/internal/marketplace/offers/${offerId}/accept`, payload);
+  }
+
+  async rejectOffer(offerId: string): Promise<OfferResponse> {
+    return this.post(`/internal/marketplace/offers/${offerId}/reject`, {});
+  }
+
+  async withdrawOffer(offerId: string): Promise<OfferResponse> {
+    return this.post(`/internal/marketplace/offers/${offerId}/withdraw`, {});
+  }
+
+  async listOrders(query: Record<string, string | undefined>): Promise<OrderListResponse> {
+    return this.get('/internal/marketplace/orders', query);
+  }
+
+  async getOrderDetail(orderId: string, operatorUserId: string): Promise<OrderDetailResponse> {
+    return this.get(`/internal/marketplace/orders/${orderId}`, { operatorUserId });
+  }
+
+  async transitionOrder(orderId: string, payload: OrderTransitionRequest): Promise<OrderResponse> {
+    return this.post(`/internal/marketplace/orders/${orderId}/transition`, payload);
+  }
+
+  private async get<TResponse>(
+    path: string,
+    query?: Record<string, string | undefined>,
+  ): Promise<TResponse> {
+    const url = new URL(`${this.baseUrl}${path}`);
+    Object.entries(query ?? {}).forEach(([key, value]) => {
+      if (value !== undefined) url.searchParams.set(key, value);
+    });
+
+    let response: Response;
+
+    try {
+      response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'X-Internal-Token': this.token,
+        },
+      });
+    } catch (error) {
+      throw new PythonClientError('Python 服务不可用', 503, error);
+    }
+
+    return this.readResponse<TResponse>(response);
+  }
+
   private async post<TRequest, TResponse>(path: string, payload: TRequest): Promise<TResponse> {
     let response: Response;
 
@@ -73,6 +161,10 @@ export class PythonClient {
       throw new PythonClientError('Python 服务不可用', 503, error);
     }
 
+    return this.readResponse<TResponse>(response);
+  }
+
+  private async readResponse<TResponse>(response: Response): Promise<TResponse> {
     const raw = await response.text();
     const parsed = raw ? safeJsonParse(raw) : null;
 

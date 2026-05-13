@@ -1,9 +1,8 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 
-import { DomainStore } from '../../services/domain-store.js';
-import { handleDomainError } from '../../utils/domain-errors.js';
+import { PythonClient, PythonClientError } from '../../services/python-client.js';
 
-export function createDemandsRouter(domainStore: DomainStore): Router {
+export function createDemandsRouter(pythonClient: PythonClient): Router {
   const router = Router();
 
   router.post('/api/demands', async (req, res) => {
@@ -13,50 +12,45 @@ export function createDemandsRouter(domainStore: DomainStore): Router {
     }
 
     try {
-      const demand = await domainStore.createDemand(body);
+      const demand = await pythonClient.createDemand(normalizeDemandCreate(body));
       return res.status(201).json(demand);
     } catch (error) {
-      return handleDomainError(error, res, 'unexpected demand error');
+      return handlePythonError(error, res);
     }
   });
 
   router.get('/api/demands', async (req, res) => {
     try {
-      const demands = await domainStore.listDemands({
+      const result = await pythonClient.listDemands({
         serviceType: asString(req.query.serviceType),
         district: asString(req.query.district),
         status: asString(req.query.status),
-        petFriendly: asString(req.query.petFriendly),
-        supportsCrate: asString(req.query.supportsCrate),
-        supportsMultiPet: asString(req.query.supportsMultiPet),
-        supportsMedication: asString(req.query.supportsMedication),
-        supportsHomeVisit: asString(req.query.supportsHomeVisit),
-        supportsMultiDayCare: asString(req.query.supportsMultiDayCare),
         page: asString(req.query.page),
         pageSize: asString(req.query.pageSize),
       });
-      return res.json({ items: demands });
+      return res.json(result);
     } catch (error) {
-      return handleDomainError(error, res, 'unexpected demand error');
+      return handlePythonError(error, res);
     }
   });
 
   router.get('/api/demands/:id', async (req, res) => {
     try {
-      const demand = await domainStore.getDemand(req.params.id);
-      if (!demand) return res.status(404).json({ error: 'demand not found' });
+      const demand = await pythonClient.getDemand(req.params.id);
       return res.json(demand);
     } catch (error) {
-      return handleDomainError(error, res, 'unexpected demand error');
+      return handlePythonError(error, res);
     }
   });
 
   router.post('/api/demands/:id/cancel', async (req, res) => {
     try {
-      const demand = await domainStore.cancelDemand(req.params.id, req.body?.operatorUserId);
+      const operatorUserId = req.body?.operatorUserId;
+      if (!operatorUserId) return res.status(400).json({ error: 'operatorUserId is required' });
+      const demand = await pythonClient.cancelDemand(req.params.id, { operatorUserId });
       return res.json(demand);
     } catch (error) {
-      return handleDomainError(error, res, 'unexpected demand error');
+      return handlePythonError(error, res);
     }
   });
 
@@ -65,4 +59,30 @@ export function createDemandsRouter(domainStore: DomainStore): Router {
 
 function asString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
+}
+
+function normalizeDemandCreate(body: any) {
+  return {
+    ...body,
+    userId: body.userId || body.user_id,
+    budgetMinFen: body.budgetMinFen ?? body.budgetMin,
+    budgetMaxFen: body.budgetMaxFen ?? body.budgetMax,
+    expectedPriceFen: body.expectedPriceFen ?? body.expectedPrice,
+    district: body.district ?? body.pickup?.district,
+  };
+}
+
+function handlePythonError(error: unknown, res: Response) {
+  if (error instanceof PythonClientError) {
+    return res.status(error.statusCode).json({
+      error: pythonErrorMessage(error, 'unexpected demand error'),
+      details: error.details,
+    });
+  }
+  return res.status(500).json({ error: 'unexpected demand error' });
+}
+
+function pythonErrorMessage(error: PythonClientError, fallback: string): string {
+  const details = error.details as { detail?: unknown } | undefined;
+  return typeof details?.detail === 'string' ? details.detail : fallback;
 }

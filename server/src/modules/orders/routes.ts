@@ -11,40 +11,44 @@ export function createOrdersRouter(pythonClient: PythonClient, domainStore: Doma
 
   router.get('/api/orders', async (req, res) => {
     try {
-      const orders = await domainStore.listOrders({
+      const userId = typeof req.query.userId === 'string' ? req.query.userId : undefined;
+      if (!userId) return res.status(400).json({ error: 'userId is required' });
+      const result = await pythonClient.listOrders({
+        userId,
         status: typeof req.query.status === 'string' ? req.query.status : undefined,
       });
-      return res.json({ items: orders });
+      return res.json(result);
     } catch (error) {
-      return handleDomainError(error, res, 'unexpected order error');
+      return handlePythonError(error, res);
     }
   });
 
   router.get('/api/orders/:id', async (req, res) => {
     try {
-      const order = await domainStore.getOrder(req.params.id);
-      if (!order) return res.status(404).json({ error: 'order not found' });
-      const events = await domainStore.listOrderEvents(order.id);
-      return res.json({ order, events });
+      const operatorUserId =
+        typeof req.query.operatorUserId === 'string' ? req.query.operatorUserId : undefined;
+      if (!operatorUserId) return res.status(400).json({ error: 'operatorUserId is required' });
+      const result = await pythonClient.getOrderDetail(req.params.id, operatorUserId);
+      return res.json(result);
     } catch (error) {
-      return handleDomainError(error, res, 'unexpected order error');
+      return handlePythonError(error, res);
     }
   });
 
   router.post('/api/orders/:id/confirm-arrival', async (req, res) => {
-    return transitionOrder(req.params.id, 'confirm-arrival', req.body?.operatorUserId, domainStore, res);
+    return transitionOrder(req.params.id, 'confirm-arrival', req.body?.operatorUserId, pythonClient, res);
   });
 
   router.post('/api/orders/:id/start-service', async (req, res) => {
-    return transitionOrder(req.params.id, 'start-service', req.body?.operatorUserId, domainStore, res);
+    return transitionOrder(req.params.id, 'start-service', req.body?.operatorUserId, pythonClient, res);
   });
 
   router.post('/api/orders/:id/complete', async (req, res) => {
-    return transitionOrder(req.params.id, 'complete', req.body?.operatorUserId, domainStore, res);
+    return transitionOrder(req.params.id, 'complete', req.body?.operatorUserId, pythonClient, res);
   });
 
   router.post('/api/orders/:id/cancel', async (req, res) => {
-    return transitionOrder(req.params.id, 'cancel', req.body?.operatorUserId, domainStore, res);
+    return transitionOrder(req.params.id, 'cancel', req.body?.operatorUserId, pythonClient, res);
   });
 
   router.post('/api/orders/snapshot', async (req, res) => {
@@ -71,23 +75,33 @@ async function transitionOrder(
   orderId: string,
   action: 'confirm-arrival' | 'start-service' | 'complete' | 'cancel',
   operatorUserId: string | undefined,
-  domainStore: DomainStore,
+  pythonClient: PythonClient,
   res: Response,
 ) {
+  if (!operatorUserId) return res.status(400).json({ error: 'operatorUserId is required' });
+
   try {
-    const order = await domainStore.transitionOrder(orderId, action, operatorUserId);
+    const order = await pythonClient.transitionOrder(orderId, {
+      action: action.replace('-', '_'),
+      operatorUserId,
+    });
     return res.json(order);
   } catch (error) {
-    return handleDomainError(error, res, 'unexpected order error');
+    return handlePythonError(error, res);
   }
 }
 
 function handlePythonError(error: unknown, res: Response) {
   if (error instanceof PythonClientError) {
     return res.status(error.statusCode).json({
-      error: error.message,
+      error: pythonErrorMessage(error),
       details: error.details,
     });
   }
   return res.status(500).json({ error: 'unexpected order error' });
+}
+
+function pythonErrorMessage(error: PythonClientError): string {
+  const details = error.details as { detail?: unknown } | undefined;
+  return typeof details?.detail === 'string' ? details.detail : error.message;
 }
