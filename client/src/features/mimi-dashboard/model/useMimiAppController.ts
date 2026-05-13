@@ -271,6 +271,7 @@ export function useMimiAppController() {
       }
 
       setUser(meResult.value);
+      api.setCurrentUserId(meResult.value.id);
       setProfileDraft({
         nickname: meResult.value.nickname,
         phone: meResult.value.phone,
@@ -431,8 +432,9 @@ export function useMimiAppController() {
     async (event: React.FormEvent) => {
       event.preventDefault();
       setBusyKey('login');
-      try {
-        await api.login(loginDraft);
+    try {
+        const result = await api.login(loginDraft);
+        api.setCurrentUserId(result.user.id);
         window.sessionStorage.setItem(AUTH_FLAG, '1');
         setAuthenticated(true);
         showToast('已进入咪咪出行 H5');
@@ -447,6 +449,7 @@ export function useMimiAppController() {
 
   const handleLogout = useCallback(() => {
     window.sessionStorage.removeItem(AUTH_FLAG);
+    api.clearCurrentUserId();
     setAuthenticated(false);
     setBooting(false);
     setUser(null);
@@ -663,7 +666,7 @@ export function useMimiAppController() {
           channel: 'alipay',
           scene: 'deposit',
         });
-        const paid = await api.queryPayment(created.paymentId, {
+        const paid = await api.queryPayment(created.payment.id, {
           markPaid: true,
           providerTradeNo: `SIM-${Date.now()}`,
         });
