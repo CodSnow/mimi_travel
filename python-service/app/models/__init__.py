@@ -2,10 +2,12 @@ from app.models.address import Address
 from app.models.conversation import Conversation
 from app.models.demand import Demand
 from app.models.message import Message
+from app.models.message_read import MessageRead
 from app.models.offer import Offer
 from app.models.order import Order
 from app.models.order_event import OrderEvent
 from app.models.payment import Payment
+from app.models.payment_event import PaymentEvent
 from app.models.pet import Pet
 from app.models.policy_favorite import PolicyFavorite
 from app.models.provider_application import ProviderApplication
@@ -25,10 +27,12 @@ __all__ = [
     "Conversation",
     "Demand",
     "Message",
+    "MessageRead",
     "Offer",
     "Order",
     "OrderEvent",
     "Payment",
+    "PaymentEvent",
     "Pet",
     "PolicyFavorite",
     "ProviderApplication",
