@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import desc, select
@@ -192,6 +192,7 @@ class MarketplaceRepository:
             event_type=event_type,
             operator_user_id=operator_user_id,
             payload=payload,
+            created_at=datetime.now(UTC),
         )
         self.db.add(event)
         self.db.flush()
