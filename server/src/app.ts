@@ -37,8 +37,8 @@ export function createApp(pythonServiceBaseUrl: string, internalApiToken: string
   app.use(createStateRouter(engine));
   app.use(createPolicyRouter(engine));
   app.use(createGovernanceRouter(pythonClient));
-  app.use(createAuthRouter(domainStore));
-  app.use(createUsersRouter(domainStore));
+  app.use(createAuthRouter(domainStore, pythonClient));
+  app.use(createUsersRouter(domainStore, pythonClient));
   app.use(createDemandsRouter(pythonClient));
   app.use(createOffersRouter(pythonClient));
   app.use(createMatchingRouter(pythonClient));

@@ -3,6 +3,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.identity import UserResponse
+
 
 class PetCreateRequest(BaseModel):
     user_id: UUID
@@ -85,3 +87,56 @@ class ProviderApplicationResponse(BaseModel):
     reviewed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class VehicleProfileResponse(BaseModel):
+    id: str
+    user_id: str
+    vehicle_type: str
+    plate_masked: str
+    seats: int
+    trunk_level: str | None = None
+    supports_cat_bag: bool
+    supports_crate: bool
+    supports_stroller: bool
+    supports_multi_pet: bool
+    pet_friendly: bool
+    pet_friendly_tags: list[str]
+
+
+class PublicProviderResponse(BaseModel):
+    user_id: str
+    nickname: str
+    phone: str
+    avatar: str | None = None
+    role: str
+    verified: bool
+    status: str
+    services: list[str]
+    intro: str | None = None
+    service_radius_km: int
+    base_district: str | None = None
+    score: float | None = None
+    completed_order_count: int
+    cat_care_score: float | None = None
+    communication_score: float | None = None
+    punctuality_score: float | None = None
+    emergency_handling_score: float | None = None
+    pet_friendly_score: float | None = None
+    driving_stability_score: float | None = None
+    cleanliness_score: float | None = None
+    supports_home_visit: bool | None = None
+    supports_medication: bool | None = None
+    supports_multi_day_care: bool | None = None
+    supports_emergency_order: bool | None = None
+    cat_care_tags: list[str]
+
+
+class PublicProviderBundleResponse(BaseModel):
+    user: UserResponse
+    provider: PublicProviderResponse
+    vehicles: list[VehicleProfileResponse]
+
+
+class PublicProviderListResponse(BaseModel):
+    items: list[PublicProviderResponse]

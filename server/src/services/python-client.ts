@@ -63,6 +63,72 @@ import type {
   PrepayRiskCheckResponse,
 } from '../internal-dto/risk.js';
 
+export interface PythonLoginResponse {
+  user: {
+    id: string;
+    phone: string;
+    nickname: string;
+    avatar?: string | null;
+    role: string;
+    verified: boolean;
+    createdAt: string;
+    updatedAt: string;
+  };
+  session: {
+    token: string;
+    expiresAt: string;
+  };
+}
+
+export interface PythonProviderProfile {
+  userId: string;
+  nickname: string;
+  phone: string;
+  avatar?: string | null;
+  role: string;
+  verified: boolean;
+  status: string;
+  services: string[];
+  intro?: string | null;
+  serviceRadiusKm: number;
+  baseDistrict?: string | null;
+  score?: number | null;
+  completedOrderCount: number;
+  catCareScore?: number | null;
+  communicationScore?: number | null;
+  punctualityScore?: number | null;
+  emergencyHandlingScore?: number | null;
+  petFriendlyScore?: number | null;
+  drivingStabilityScore?: number | null;
+  cleanlinessScore?: number | null;
+  supportsHomeVisit?: boolean | null;
+  supportsMedication?: boolean | null;
+  supportsMultiDayCare?: boolean | null;
+  supportsEmergencyOrder?: boolean | null;
+  catCareTags: string[];
+}
+
+export interface PythonVehicleProfile {
+  id: string;
+  userId: string;
+  vehicleType: string;
+  plateMasked: string;
+  seats: number;
+  trunkLevel?: string | null;
+  supportsCatBag: boolean;
+  supportsCrate: boolean;
+  supportsStroller: boolean;
+  supportsMultiPet: boolean;
+  petFriendly: boolean;
+  petFriendlyTags: string[];
+}
+
+export interface PythonProviderBundle {
+  user: PythonLoginResponse['user'];
+  provider: PythonProviderProfile;
+  vehicles: PythonVehicleProfile[];
+}
+
 export class PythonClientError extends Error {
   constructor(
     message: string,
@@ -78,6 +144,18 @@ export class PythonClient {
     private readonly baseUrl: string,
     private readonly token: string,
   ) {}
+
+  async login(payload: { phone: string; nickname: string; avatar?: string }): Promise<PythonLoginResponse> {
+    return this.post('/internal/identity/login', payload);
+  }
+
+  async listProviders(query: Record<string, string | undefined>): Promise<{ items: PythonProviderProfile[] }> {
+    return this.get('/internal/profiles/providers', query);
+  }
+
+  async getProvider(userId: string): Promise<PythonProviderBundle> {
+    return this.get(`/internal/profiles/providers/${userId}`);
+  }
 
   async matchCaregivers(payload: CaregiverMatchRequest): Promise<CaregiverMatchResponse> {
     return this.post('/internal/matching/caregivers', payload);
@@ -246,7 +324,7 @@ export class PythonClient {
   ): Promise<TResponse> {
     const url = new URL(`${this.baseUrl}${path}`);
     Object.entries(query ?? {}).forEach(([key, value]) => {
-      if (value !== undefined) url.searchParams.set(key, value);
+      if (value !== undefined) url.searchParams.set(toSnakeCaseKey(key), value);
     });
 
     let response: Response;
@@ -315,12 +393,16 @@ function toSnakeCaseKeys(value: unknown): unknown {
   if (value && typeof value === 'object') {
     return Object.fromEntries(
       Object.entries(value).map(([key, nestedValue]) => [
-        key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`),
+        toSnakeCaseKey(key),
         toSnakeCaseKeys(nestedValue),
       ]),
     );
   }
   return value;
+}
+
+function toSnakeCaseKey(key: string): string {
+  return key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 }
 
 function toCamelCaseKeys(value: unknown): unknown {
