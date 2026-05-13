@@ -1,6 +1,9 @@
+from app.models.admin_audit_log import AdminAuditLog
 from app.models.address import Address
+from app.models.complaint import Complaint
 from app.models.conversation import Conversation
 from app.models.demand import Demand
+from app.models.dispute import Dispute
 from app.models.message import Message
 from app.models.message_read import MessageRead
 from app.models.offer import Offer
@@ -24,8 +27,11 @@ from app.models.vehicle_profile import VehicleProfile
 
 __all__ = [
     "Address",
+    "AdminAuditLog",
+    "Complaint",
     "Conversation",
     "Demand",
+    "Dispute",
     "Message",
     "MessageRead",
     "Offer",

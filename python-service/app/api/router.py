@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.internal import identity, locations, marketplace, messages, payments, profiles
+from app.api.internal import governance, identity, locations, marketplace, messages, payments, profiles
 from app.api.internal.matching import router as matching_router
 from app.api.internal.orders import router as orders_router
 from app.api.internal.pricing import router as pricing_router
@@ -20,3 +20,4 @@ api_router.include_router(payments.router, prefix="/internal/payments", tags=["i
 api_router.include_router(messages.router, prefix="/internal/messages", tags=["internal-messages"])
 api_router.include_router(locations.router, prefix="/internal/locations", tags=["internal-locations"])
 api_router.include_router(profiles.router, prefix="/internal/profiles", tags=["internal-profiles"])
+api_router.include_router(governance.router, prefix="/internal/governance", tags=["internal-governance"])
