@@ -1,0 +1,85 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mimi-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mimi_python
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "54322:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mimi_python"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  python-service:
+    build:
+      context: .
+      dockerfile: deploy/python.Dockerfile
+    image: mimi-travel-python-service:latest
+    container_name: mimi-python-service
+    restart: unless-stopped
+    environment:
+      MIMI_DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/mimi_python
+      MIMI_INTERNAL_API_TOKEN: change-me-local-token
+    ports:
+      - "8800:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: .
+      dockerfile: deploy/server.Dockerfile
+    image: mimi-travel-backend:latest
+    container_name: mimi-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      PYTHON_SERVICE_BASE_URL: http://python-service:8000
+      INTERNAL_API_TOKEN: change-me-local-token
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      python-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then((res)=>{if(!res.ok)process.exit(1);}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  frontend:
+    build:
+      context: .
+      dockerfile: deploy/client.Dockerfile
+    image: mimi-travel-frontend:latest
+    container_name: mimi-frontend
+    restart: unless-stopped
+    ports:
+      - "8809:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  postgres-data:

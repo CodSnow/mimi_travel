@@ -1,0 +1,14 @@
+node_modules
+*/node_modules
+client/dist
+server/dist
+.git
+.idea
+.DS_Store
+*.log
+mp/
+__pycache__
+*/__pycache__
+.pytest_cache
+.ruff_cache
+python-service/.venv

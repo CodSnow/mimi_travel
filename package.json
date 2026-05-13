@@ -1,0 +1,14 @@
+{
+  "name": "mimi-travel",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --parallel --filter \"./client\" --filter \"./server\" run dev",
+    "build": "pnpm -r run build"
+  },
+  "pnpm": {
+    "overrides": {
+      "webpack": "5.94.0"
+    }
+  }
+}
