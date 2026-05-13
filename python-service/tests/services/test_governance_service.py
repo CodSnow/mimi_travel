@@ -2,9 +2,12 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.repositories.governance_repo import GovernanceRepository
+from app.repositories.marketplace_repo import MarketplaceRepository
 from app.repositories.provider_application_repo import ProviderApplicationRepository
 from app.repositories.user_repo import UserRepository
 from app.services.governance.governance_service import GovernanceService, GovernanceServiceError
+from app.services.marketplace.marketplace_service import MarketplaceService
+from app.services.orders.order_state_service import OrderStateService
 
 
 @pytest.fixture
@@ -18,6 +21,18 @@ def admin(db: Session):
 @pytest.fixture
 def customer(db: Session):
     return UserRepository(db).upsert_by_phone("13960000002", "用户", "cat")
+
+
+@pytest.fixture
+def provider(db: Session):
+    return UserRepository(db).upsert_by_phone("13960000003", "服务者", "provider")
+
+
+def create_demo_order(db: Session, customer, provider):
+    marketplace = MarketplaceService(MarketplaceRepository(db), OrderStateService())
+    demand = marketplace.create_demand(customer.id, "feeding", "上门喂猫")
+    offer = marketplace.create_offer(demand.id, provider.id, quote_amount_fen=8800)
+    return marketplace.accept_offer(offer.id, customer.id).order
 
 
 def test_admin_reviews_provider_application_and_writes_audit(db: Session, admin, customer):
@@ -46,8 +61,9 @@ def test_non_admin_can_not_review_application(db: Session, customer):
         GovernanceService(GovernanceRepository(db)).list_provider_applications(customer.id)
 
 
-def test_create_and_handle_complaint_and_dispute(db: Session, admin, customer):
+def test_create_and_handle_complaint_and_dispute(db: Session, admin, customer, provider):
     service = GovernanceService(GovernanceRepository(db))
+    order = create_demo_order(db, customer, provider)
 
     complaint = service.create_complaint(
         complainant_user_id=customer.id,
@@ -65,7 +81,7 @@ def test_create_and_handle_complaint_and_dispute(db: Session, admin, customer):
     assert handled_complaint.handled_by == admin.id
 
     dispute = service.create_dispute(
-        order_id=complaint.id,
+        order_id=order.id,
         opener_user_id=customer.id,
         reason="refund",
         description="申请退款",
