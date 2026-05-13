@@ -28,7 +28,8 @@ class UserRepository:
             )
             .returning(User)
         )
-        return self.db.scalars(stmt).one()
+        result = self.db.execute(stmt.execution_options(populate_existing=True))
+        return result.scalar_one()
 
     def create_session(
         self,

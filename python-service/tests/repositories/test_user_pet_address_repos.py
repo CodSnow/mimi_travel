@@ -80,7 +80,8 @@ def test_list_pets_by_user(db: Session, demo_user):
 
     pets = repo.list_by_user(demo_user.id)
 
-    assert [pet.id for pet in pets] == [first.id, second.id]
+    assert {pet.id for pet in pets} == {first.id, second.id}
+    assert [pet.id for pet in pets] == sorted([first.id, second.id], key=str)
 
 
 def test_update_pet_fields(db: Session, demo_user):
