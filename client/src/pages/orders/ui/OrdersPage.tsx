@@ -61,7 +61,10 @@ export function OrdersPage({ controller }: { controller: MimiAppController }) {
                     meta.tone,
                   ].join(' ')}
                   key={order.id}
-                  onClick={() => void orders.loadOrderDetail(order.id)}
+                  onClick={() => {
+                    void orders.loadOrderDetail(order.id);
+                    ui.navigateToScreen('order_detail', { orderId: order.id });
+                  }}
                   type="button"
                 >
                   <div>
@@ -169,10 +172,10 @@ export function OrdersPage({ controller }: { controller: MimiAppController }) {
               <button
                 className="ghost-btn"
                 disabled={ui.busyKey === `location-${selectedOrder.id}`}
-                onClick={() => void orders.reportOrderLocation()}
+                onClick={() => ui.navigateToScreen('navigation', { orderId: selectedOrder.id })}
                 type="button"
               >
-                上报位置
+                导航与位置
               </button>
               {orders.navigationUrl ? (
                 <a className="link-btn" href={orders.navigationUrl} rel="noreferrer" target="_blank">

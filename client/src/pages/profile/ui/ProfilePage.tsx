@@ -71,6 +71,31 @@ export function ProfilePage({ controller }: { controller: MimiAppController }) {
           <strong>政策查询</strong>
           <em>›</em>
         </button>
+        <button className="profile-menu-row" onClick={() => ui.navigateToScreen('pets')} type="button">
+          <span className="profile-menu-icon favorite">🐱</span>
+          <strong>宠物档案</strong>
+          <em>›</em>
+        </button>
+        <button className="profile-menu-row" onClick={() => ui.navigateToScreen('addresses')} type="button">
+          <span className="profile-menu-icon order">📍</span>
+          <strong>地址管理</strong>
+          <em>›</em>
+        </button>
+        <button className="profile-menu-row" onClick={() => ui.navigateToScreen('payments')} type="button">
+          <span className="profile-menu-icon favorite">💳</span>
+          <strong>支付记录</strong>
+          <em>›</em>
+        </button>
+        <button className="profile-menu-row" onClick={() => ui.navigateToScreen('provider_workspace')} type="button">
+          <span className="profile-menu-icon order">🧰</span>
+          <strong>服务者工作台</strong>
+          <em>›</em>
+        </button>
+        <button className="profile-menu-row" onClick={() => ui.navigateToScreen('admin')} type="button">
+          <span className="profile-menu-icon favorite">🛡️</span>
+          <strong>管理后台</strong>
+          <em>›</em>
+        </button>
       </section>
 
       <section className="profile-section">

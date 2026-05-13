@@ -44,7 +44,10 @@ export function MessagesPage({ controller }: { controller: MimiAppController }) 
               <button
                 className={['conversation-item', messages.selectedConversationId === conversation.id ? 'is-active' : ''].join(' ')}
                 key={conversation.id}
-                onClick={() => void messages.loadConversationDetail(conversation.id)}
+                onClick={() => {
+                  void messages.loadConversationDetail(conversation.id);
+                  ui.navigateToScreen('conversation', { conversationId: conversation.id, orderId: conversation.orderId });
+                }}
                 type="button"
               >
                 <div>

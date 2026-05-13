@@ -39,6 +39,8 @@ import type {
   ProviderCard,
   RecommendationCard,
   ReviewDraft,
+  ScreenKey,
+  ScreenParams,
   TabKey,
 } from './types';
 
@@ -46,6 +48,8 @@ export function useMimiAppController() {
   const [booting, setBooting] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>('home');
+  const [screen, setScreen] = useState<ScreenKey>('tab');
+  const [screenParams, setScreenParams] = useState<ScreenParams>({});
   const [loading, setLoading] = useState(false);
   const [busyKey, setBusyKey] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -145,6 +149,23 @@ export function useMimiAppController() {
   );
 
   const showTopBar = !['home', 'policy', 'mine'].includes(activeTab);
+
+  const navigateToScreen = useCallback((nextScreen: ScreenKey, params: ScreenParams = {}) => {
+    setScreen(nextScreen);
+    setScreenParams(params);
+  }, []);
+
+  const returnToTab = useCallback((tab?: TabKey) => {
+    if (tab) setActiveTab(tab);
+    setScreen('tab');
+    setScreenParams({});
+  }, []);
+
+  const switchTab = useCallback((tab: TabKey) => {
+    setActiveTab(tab);
+    setScreen('tab');
+    setScreenParams({});
+  }, []);
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -477,6 +498,8 @@ export function useMimiAppController() {
     setHomeTab('buddy');
     setBannerIndex(0);
     setSelectedPolicyDistrict('全部');
+    setScreen('tab');
+    setScreenParams({});
     setBusyKey('');
     setErrorMessage('');
     setLoading(false);
@@ -543,8 +566,8 @@ export function useMimiAppController() {
             serviceNote: card?.intro || (isRideService(demand.serviceType) ? '宠物友好司机' : '照护经验较充足'),
           } satisfies RecommendationCard;
         });
-        setRecommendations(nextRecommendations);
-        showToast('推荐候选已更新');
+      setRecommendations(nextRecommendations);
+      showToast('推荐候选已更新');
       } catch (error) {
         const fallback = providerCards
           .filter((card) => card.services.includes(demand.serviceType))
@@ -582,6 +605,7 @@ export function useMimiAppController() {
       setLatestOffers([]);
       await runRecommendations(created);
       setActiveTab('publish');
+      navigateToScreen('demand_detail', { demandId: created.id });
       showToast('需求已发布，正在刷新推荐');
     } catch (error) {
       applyError(error, '发布需求失败');
@@ -624,6 +648,7 @@ export function useMimiAppController() {
         await syncDashboard();
         setActiveTab('orders');
         await loadOrderDetail(accepted.order.id);
+        navigateToScreen('order_confirm', { orderId: accepted.order.id });
         showToast('已生成订单，下一步支付定金');
       } catch (error) {
         applyError(error, '生成订单失败');
@@ -673,6 +698,7 @@ export function useMimiAppController() {
         setPaymentCache((prev) => ({ ...prev, [order.id]: paid }));
         await syncDashboard();
         await loadOrderDetail(order.id);
+        navigateToScreen('payment_result', { orderId: order.id });
         showToast('支付成功，订单已进入待到达');
       } catch (error) {
         applyError(error, '支付失败');
@@ -853,6 +879,7 @@ export function useMimiAppController() {
       try {
         setSelectedPolicyId(policyId);
         setSelectedPolicy(await api.getPolicyDocument(policyId));
+        navigateToScreen('policy_detail', { policyId });
       } catch (error) {
         applyError(error, '政策详情加载失败');
       }
@@ -875,7 +902,11 @@ export function useMimiAppController() {
       booting,
       authenticated,
       activeTab,
-      setActiveTab,
+      setActiveTab: switchTab,
+      screen,
+      screenParams,
+      navigateToScreen,
+      returnToTab,
       loading,
       busyKey,
       errorMessage,

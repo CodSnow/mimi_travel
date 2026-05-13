@@ -89,7 +89,7 @@ export function HomePage({ controller }: { controller: MimiAppController }) {
 
       {home.homeTab === 'buddy' ? (
         <>
-          <button className="idle-home-cta" onClick={() => ui.setActiveTab('mine')} type="button">
+          <button className="idle-home-cta" onClick={() => ui.navigateToScreen('provider_onboarding')} type="button">
             <strong>💰 成为闲人，赚生活费！</strong>
             <span>立即申请 <i>→</i></span>
           </button>
@@ -108,14 +108,7 @@ export function HomePage({ controller }: { controller: MimiAppController }) {
                   </div>
                   <button
                     className="mini-action"
-                    onClick={() => {
-                      publish.setDemandForm((prev) => ({
-                        ...prev,
-                        serviceType: 'buddy',
-                        title: serviceTitleTemplate('buddy'),
-                      }));
-                      ui.setActiveTab('publish');
-                    }}
+                    onClick={() => ui.navigateToScreen('provider_detail', { providerUserId: card.userId })}
                     type="button"
                   >
                     约 TA
@@ -182,7 +175,9 @@ export function HomePage({ controller }: { controller: MimiAppController }) {
                     <h3>{card.nickname}</h3>
                     <p>{card.baseDistrict}｜{card.tags.slice(0, 2).join('｜') || '宠物友好接送'}</p>
                   </div>
-                  <span className="mini-status">{card.vehicleType || '可接单'}</span>
+                  <button className="mini-status" onClick={() => ui.navigateToScreen('driver_detail', { providerUserId: card.userId })} type="button">
+                    {card.vehicleType || '可接单'}
+                  </button>
                 </article>
               ))}
             </section>
@@ -198,8 +193,8 @@ export function HomePage({ controller }: { controller: MimiAppController }) {
           <span>快速跳转</span>
         </div>
         <div className="profile-grid">
-          <button onClick={() => ui.setActiveTab('publish')} type="button"><i>📝</i><span>发需求</span></button>
-          <button onClick={() => ui.setActiveTab('orders')} type="button"><i>📦</i><span>我的订单</span></button>
+          <button onClick={() => ui.navigateToScreen('demand_hall')} type="button"><i>🧾</i><span>需求大厅</span></button>
+          <button onClick={() => ui.navigateToScreen('nearby_providers')} type="button"><i>📍</i><span>附近服务者</span></button>
           <button onClick={() => ui.setActiveTab('messages')} type="button"><i>💬</i><span>消息中心</span></button>
           <button onClick={() => ui.setActiveTab('policy')} type="button"><i>📚</i><span>政策问答</span></button>
         </div>
