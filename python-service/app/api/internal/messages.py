@@ -73,7 +73,16 @@ def send_message(
     db: Session = Depends(get_db),
 ) -> MessageResponse:
     try:
-        message = _service(db).send_message(conversation_id=conversation_id, **payload.model_dump())
+        message = _service(db).send_message(
+            conversation_id=conversation_id,
+            sender_user_id=payload.sender_user_id,
+            message_type=payload.type,
+            content=payload.content,
+            payload=payload.payload,
+            related_demand_id=payload.related_demand_id,
+            related_order_id=payload.related_order_id,
+            client_msg_id=payload.client_msg_id,
+        )
         db.commit()
         return MessageResponse.model_validate(message)
     except MessageServiceError as error:
