@@ -280,6 +280,56 @@ a {
   font-size: 24px;
 }
 
+.flow-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.flow-header h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.as-button {
+  width: 100%;
+  text-align: left;
+}
+
+.provider-row {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.provider-detail-card,
+.flow-page .section-card {
+  display: grid;
+  gap: 14px;
+}
+
+.danger-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 14px;
+  background: var(--danger);
+  color: #fff;
+  font-weight: 700;
+}
+
+.compact-top {
+  margin-top: 12px;
+}
+
 .alert-banner {
   margin-bottom: 16px;
   padding: 12px 14px;

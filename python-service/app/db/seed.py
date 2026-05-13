@@ -1,6 +1,13 @@
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import Session
+
+from app.models.provider_profile import ProviderProfile
+from app.models.user import User
+from app.models.vehicle_profile import VehicleProfile
 from app.repositories.projections import (
     ProviderProjection,
     ReviewProjection,
@@ -303,3 +310,116 @@ def load_sample_reviews() -> list[ReviewProjection]:
 
 def load_sample_feedbacks() -> list[ServiceFeedbackProjection]:
     return deepcopy(SAMPLE_FEEDBACKS)
+
+
+def seed_sample_providers(db: Session) -> None:
+    for provider in load_sample_providers():
+        provider_id = UUID(provider.user_id)
+        db.execute(
+            insert(User)
+            .values(
+                id=provider_id,
+                phone=provider.phone,
+                nickname=provider.nickname,
+                avatar=provider.avatar,
+                role="provider",
+                verified=provider.verified,
+            )
+            .on_conflict_do_update(
+                index_elements=[User.id],
+                set_={
+                    "phone": provider.phone,
+                    "nickname": provider.nickname,
+                    "avatar": provider.avatar,
+                    "role": "provider",
+                    "verified": provider.verified,
+                },
+            )
+        )
+        db.execute(
+            insert(ProviderProfile)
+            .values(
+                user_id=provider_id,
+                status=provider.status,
+                services=provider.services,
+                intro=provider.intro,
+                service_radius_km=provider.service_radius_km,
+                base_district=provider.base_district,
+                score=provider.score,
+                completed_order_count=provider.completed_order_count,
+                cat_care_score=provider.cat_care_score,
+                communication_score=provider.communication_score,
+                punctuality_score=provider.punctuality_score,
+                emergency_handling_score=provider.emergency_handling_score,
+                pet_friendly_score=provider.pet_friendly_score,
+                driving_stability_score=provider.driving_stability_score,
+                cleanliness_score=provider.cleanliness_score,
+                supports_home_visit=provider.supports_home_visit,
+                supports_medication=provider.supports_medication,
+                supports_multi_day_care=provider.supports_multi_day_care,
+                supports_emergency_order=provider.supports_emergency_order,
+                cat_care_tags=provider.cat_care_tags,
+                accepting_orders=True,
+                service_time_slots=[],
+            )
+            .on_conflict_do_update(
+                index_elements=[ProviderProfile.user_id],
+                set_={
+                    "status": provider.status,
+                    "services": provider.services,
+                    "intro": provider.intro,
+                    "service_radius_km": provider.service_radius_km,
+                    "base_district": provider.base_district,
+                    "score": provider.score,
+                    "completed_order_count": provider.completed_order_count,
+                    "cat_care_score": provider.cat_care_score,
+                    "communication_score": provider.communication_score,
+                    "punctuality_score": provider.punctuality_score,
+                    "emergency_handling_score": provider.emergency_handling_score,
+                    "pet_friendly_score": provider.pet_friendly_score,
+                    "driving_stability_score": provider.driving_stability_score,
+                    "cleanliness_score": provider.cleanliness_score,
+                    "supports_home_visit": provider.supports_home_visit,
+                    "supports_medication": provider.supports_medication,
+                    "supports_multi_day_care": provider.supports_multi_day_care,
+                    "supports_emergency_order": provider.supports_emergency_order,
+                    "cat_care_tags": provider.cat_care_tags,
+                    "accepting_orders": True,
+                    "service_time_slots": [],
+                },
+            )
+        )
+        for vehicle in provider.vehicles:
+            db.execute(
+                insert(VehicleProfile)
+                .values(
+                    id=UUID(vehicle.id),
+                    user_id=UUID(vehicle.user_id),
+                    vehicle_type=vehicle.vehicle_type,
+                    plate_masked=vehicle.plate_masked,
+                    seats=vehicle.seats,
+                    trunk_level=vehicle.trunk_level,
+                    supports_cat_bag=vehicle.supports_cat_bag,
+                    supports_crate=vehicle.supports_crate,
+                    supports_stroller=vehicle.supports_stroller,
+                    supports_multi_pet=vehicle.supports_multi_pet,
+                    pet_friendly=vehicle.pet_friendly,
+                    pet_friendly_tags=vehicle.pet_friendly_tags,
+                )
+                .on_conflict_do_update(
+                    index_elements=[VehicleProfile.id],
+                    set_={
+                        "user_id": UUID(vehicle.user_id),
+                        "vehicle_type": vehicle.vehicle_type,
+                        "plate_masked": vehicle.plate_masked,
+                        "seats": vehicle.seats,
+                        "trunk_level": vehicle.trunk_level,
+                        "supports_cat_bag": vehicle.supports_cat_bag,
+                        "supports_crate": vehicle.supports_crate,
+                        "supports_stroller": vehicle.supports_stroller,
+                        "supports_multi_pet": vehicle.supports_multi_pet,
+                        "pet_friendly": vehicle.pet_friendly,
+                        "pet_friendly_tags": vehicle.pet_friendly_tags,
+                    },
+                )
+            )

@@ -4,12 +4,10 @@ import { Router, type Response } from 'express';
 
 import { env } from '../../config/env.js';
 import type { PrepayRiskCheckRequest } from '../../internal-dto/risk.js';
-import { DomainStore } from '../../services/domain-store.js';
 import { PythonClient, PythonClientError } from '../../services/python-client.js';
-import { handleDomainError } from '../../utils/domain-errors.js';
 import { buildInternalRequestMeta } from '../../utils/request-meta.js';
 
-export function createPaymentsRouter(pythonClient: PythonClient, domainStore: DomainStore): Router {
+export function createPaymentsRouter(pythonClient: PythonClient): Router {
   const router = Router();
 
   router.post('/api/payments', async (req, res) => {
@@ -19,50 +17,78 @@ export function createPaymentsRouter(pythonClient: PythonClient, domainStore: Do
     }
 
     try {
-      const result = await domainStore.createPayment(body);
+      const result = await pythonClient.createPayment(body);
       return res.status(201).json(result);
     } catch (error) {
-      return handleDomainError(error, res, 'unexpected payment error');
+      return handlePythonError(error, res);
     }
   });
 
   router.get('/api/payments/:id', async (req, res) => {
     try {
-      const payment = await domainStore.getPayment(req.params.id);
-      if (!payment) return res.status(404).json({ error: 'payment not found' });
+      const operatorUserId =
+        typeof req.query.operatorUserId === 'string' ? req.query.operatorUserId : undefined;
+      if (!operatorUserId) return res.status(400).json({ error: 'operatorUserId is required' });
+      const payment = await pythonClient.getPayment(req.params.id, operatorUserId);
       return res.json(payment);
     } catch (error) {
-      return handleDomainError(error, res, 'unexpected payment error');
+      return handlePythonError(error, res);
     }
   });
 
   router.post('/api/payments/:id/query', async (req, res) => {
     try {
-      const payment = req.body?.markPaid
-        ? await domainStore.markPaymentPaid(req.params.id, req.body.providerTradeNo, req.body)
-        : await domainStore.getPayment(req.params.id);
-      if (!payment) return res.status(404).json({ error: 'payment not found' });
+      if (!req.body?.operatorUserId) {
+        return res.status(400).json({ error: 'operatorUserId is required' });
+      }
+      const payment = await pythonClient.queryPayment(req.params.id, {
+        operatorUserId: req.body.operatorUserId,
+        markPaid: Boolean(req.body.markPaid),
+        providerTradeNo: req.body.providerTradeNo,
+        rawPayload: req.body,
+      });
       return res.json(payment);
     } catch (error) {
-      return handleDomainError(error, res, 'unexpected payment error');
+      return handlePythonError(error, res);
+    }
+  });
+
+  router.post('/api/payments/:id/close', async (req, res) => {
+    try {
+      if (!req.body?.operatorUserId) {
+        return res.status(400).json({ error: 'operatorUserId is required' });
+      }
+      const payment = await pythonClient.closePayment(req.params.id, {
+        operatorUserId: req.body.operatorUserId,
+      });
+      return res.json(payment);
+    } catch (error) {
+      return handlePythonError(error, res);
     }
   });
 
   router.post('/api/payments/:id/refund', async (req, res) => {
     try {
-      const result = await domainStore.refundPayment(req.params.id, req.body?.reason);
+      if (!req.body?.operatorUserId) {
+        return res.status(400).json({ error: 'operatorUserId is required' });
+      }
+      const result = await pythonClient.refundPayment(req.params.id, {
+        operatorUserId: req.body.operatorUserId,
+        reason: req.body.reason,
+        refundAmountFen: req.body.refundAmountFen,
+      });
       return res.json(result);
     } catch (error) {
-      return handleDomainError(error, res, 'unexpected payment error');
+      return handlePythonError(error, res);
     }
   });
 
   router.post('/api/payments/notify/alipay', async (req, res) => {
-    return handlePaymentNotify('alipay', req.body, domainStore, res);
+    return handlePaymentNotify('alipay', req.body, pythonClient, res);
   });
 
   router.post('/api/payments/notify/wechat', async (req, res) => {
-    return handlePaymentNotify('wechat_pay', req.body, domainStore, res);
+    return handlePaymentNotify('wechat_pay', req.body, pythonClient, res);
   });
 
   router.post('/api/payments/prepay-check', async (req, res) => {
@@ -85,24 +111,18 @@ export function createPaymentsRouter(pythonClient: PythonClient, domainStore: Do
   return router;
 }
 
-async function handlePaymentNotify(channel: 'alipay' | 'wechat_pay', body: any, domainStore: DomainStore, res: Response) {
+async function handlePaymentNotify(channel: 'alipay' | 'wechat_pay', body: any, pythonClient: PythonClient, res: Response) {
   const outTradeNo = body?.outTradeNo || body?.out_trade_no;
   if (!outTradeNo) return res.status(400).json({ error: 'outTradeNo is required' });
 
   try {
-    const payment = await domainStore.getPaymentByOutTradeNo(outTradeNo);
-    if (!payment) return res.status(404).json({ error: 'payment not found' });
-    if (payment.channel !== channel) {
-      return res.status(409).json({ error: 'payment channel mismatch' });
-    }
-
     const merchantId = firstString(body?.merchantId, body?.merchant_id, body?.mch_id);
     if (!merchantId || merchantId !== env.paymentMerchantId) {
       return res.status(400).json({ error: 'invalid merchant id' });
     }
 
     const amountFen = resolveNotifyAmountFen(body);
-    if (amountFen === null || amountFen !== payment.amountFen) {
+    if (amountFen === null) {
       return res.status(400).json({ error: 'payment amount mismatch' });
     }
 
@@ -112,20 +132,20 @@ async function handlePaymentNotify(channel: 'alipay' | 'wechat_pay', body: any, 
     }
 
     const expectedSignature = createHmac('sha256', env.paymentNotifySecret)
-      .update(`${env.paymentMerchantId}:${outTradeNo}:${payment.amountFen}`)
+      .update(`${env.paymentMerchantId}:${outTradeNo}:${amountFen}`)
       .digest('hex');
     if (signature !== expectedSignature) {
       return res.status(400).json({ error: 'invalid notify signature' });
     }
 
-    const paidPayment = await domainStore.markPaymentPaidByOutTradeNo(
+    const paidPayment = await pythonClient.notifyPayment({
       outTradeNo,
-      body?.providerTradeNo || body?.trade_no,
-      body,
-    );
+      providerTradeNo: body?.providerTradeNo || body?.trade_no,
+      rawPayload: { ...body, channel },
+    });
     return res.json({ ok: true, payment: paidPayment });
   } catch (error) {
-    return handleDomainError(error, res, 'unexpected payment notify error');
+    return handlePythonError(error, res);
   }
 }
 
@@ -156,9 +176,14 @@ function resolveNotifyAmountFen(body: any): number | null {
 function handlePythonError(error: unknown, res: Response) {
   if (error instanceof PythonClientError) {
     return res.status(error.statusCode).json({
-      error: error.message,
+      error: pythonErrorMessage(error),
       details: error.details,
     });
   }
   return res.status(500).json({ error: 'unexpected payment error' });
+}
+
+function pythonErrorMessage(error: PythonClientError): string {
+  const details = error.details as { detail?: unknown } | undefined;
+  return typeof details?.detail === 'string' ? details.detail : error.message;
 }

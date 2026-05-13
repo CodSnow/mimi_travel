@@ -14,7 +14,9 @@ import {
   ApiError,
   api,
   type AskPolicyResponse,
+  type AdminDashboardResponse,
   type CaregiverMatchCandidate,
+  type PolicyFavoriteRecord,
   type DriverMatchCandidate,
   type KnowledgePreview,
   type PaymentCreateResponse,
@@ -39,6 +41,8 @@ import type {
   ProviderCard,
   RecommendationCard,
   ReviewDraft,
+  ScreenKey,
+  ScreenParams,
   TabKey,
 } from './types';
 
@@ -46,6 +50,8 @@ export function useMimiAppController() {
   const [booting, setBooting] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>('home');
+  const [screen, setScreen] = useState<ScreenKey>('tab');
+  const [screenParams, setScreenParams] = useState<ScreenParams>({});
   const [loading, setLoading] = useState(false);
   const [busyKey, setBusyKey] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -95,7 +101,9 @@ export function useMimiAppController() {
   const [selectedPolicy, setSelectedPolicy] = useState<PolicyDocument | null>(null);
   const [policyQuestion, setPolicyQuestion] = useState('杭州办理《动物检疫合格证明》需要哪些材料？');
   const [policyAnswer, setPolicyAnswer] = useState<AskPolicyResponse | null>(null);
+  const [policyFavorites, setPolicyFavorites] = useState<PolicyFavoriteRecord[]>([]);
   const [selectedPolicyDistrict, setSelectedPolicyDistrict] = useState('全部');
+  const [adminDashboard, setAdminDashboard] = useState<AdminDashboardResponse | null>(null);
 
   const [demandForm, setDemandForm] = useState<DemandFormState>(() => createDefaultDemandForm());
   const [homeTab, setHomeTab] = useState<'buddy' | 'car'>('buddy');
@@ -145,6 +153,23 @@ export function useMimiAppController() {
   );
 
   const showTopBar = !['home', 'policy', 'mine'].includes(activeTab);
+
+  const navigateToScreen = useCallback((nextScreen: ScreenKey, params: ScreenParams = {}) => {
+    setScreen(nextScreen);
+    setScreenParams(params);
+  }, []);
+
+  const returnToTab = useCallback((tab?: TabKey) => {
+    if (tab) setActiveTab(tab);
+    setScreen('tab');
+    setScreenParams({});
+  }, []);
+
+  const switchTab = useCallback((tab: TabKey) => {
+    setActiveTab(tab);
+    setScreen('tab');
+    setScreenParams({});
+  }, []);
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -271,6 +296,7 @@ export function useMimiAppController() {
       }
 
       setUser(meResult.value);
+      api.setCurrentUserId(meResult.value.id);
       setProfileDraft({
         nickname: meResult.value.nickname,
         phone: meResult.value.phone,
@@ -335,6 +361,12 @@ export function useMimiAppController() {
         } else {
           setSelectedPolicy(null);
         }
+      }
+      try {
+        const favorites = await api.listPolicyFavorites(meResult.value.id);
+        setPolicyFavorites(favorites.items);
+      } catch {
+        setPolicyFavorites([]);
       }
     } catch (error) {
       applyError(error, '初始化数据失败');
@@ -431,8 +463,9 @@ export function useMimiAppController() {
     async (event: React.FormEvent) => {
       event.preventDefault();
       setBusyKey('login');
-      try {
-        await api.login(loginDraft);
+    try {
+        const result = await api.login(loginDraft);
+        api.setCurrentUserId(result.user.id);
         window.sessionStorage.setItem(AUTH_FLAG, '1');
         setAuthenticated(true);
         showToast('已进入咪咪出行 H5');
@@ -447,6 +480,7 @@ export function useMimiAppController() {
 
   const handleLogout = useCallback(() => {
     window.sessionStorage.removeItem(AUTH_FLAG);
+    api.clearCurrentUserId();
     setAuthenticated(false);
     setBooting(false);
     setUser(null);
@@ -469,11 +503,15 @@ export function useMimiAppController() {
     setSelectedPolicyId('');
     setSelectedPolicy(null);
     setPolicyAnswer(null);
+    setPolicyFavorites([]);
+    setAdminDashboard(null);
     setOrderFilter('all');
     setDemandForm(createDefaultDemandForm());
     setHomeTab('buddy');
     setBannerIndex(0);
     setSelectedPolicyDistrict('全部');
+    setScreen('tab');
+    setScreenParams({});
     setBusyKey('');
     setErrorMessage('');
     setLoading(false);
@@ -540,8 +578,8 @@ export function useMimiAppController() {
             serviceNote: card?.intro || (isRideService(demand.serviceType) ? '宠物友好司机' : '照护经验较充足'),
           } satisfies RecommendationCard;
         });
-        setRecommendations(nextRecommendations);
-        showToast('推荐候选已更新');
+      setRecommendations(nextRecommendations);
+      showToast('推荐候选已更新');
       } catch (error) {
         const fallback = providerCards
           .filter((card) => card.services.includes(demand.serviceType))
@@ -579,6 +617,7 @@ export function useMimiAppController() {
       setLatestOffers([]);
       await runRecommendations(created);
       setActiveTab('publish');
+      navigateToScreen('demand_detail', { demandId: created.id });
       showToast('需求已发布，正在刷新推荐');
     } catch (error) {
       applyError(error, '发布需求失败');
@@ -621,6 +660,7 @@ export function useMimiAppController() {
         await syncDashboard();
         setActiveTab('orders');
         await loadOrderDetail(accepted.order.id);
+        navigateToScreen('order_confirm', { orderId: accepted.order.id });
         showToast('已生成订单，下一步支付定金');
       } catch (error) {
         applyError(error, '生成订单失败');
@@ -663,13 +703,14 @@ export function useMimiAppController() {
           channel: 'alipay',
           scene: 'deposit',
         });
-        const paid = await api.queryPayment(created.paymentId, {
+        const paid = await api.queryPayment(created.payment.id, {
           markPaid: true,
           providerTradeNo: `SIM-${Date.now()}`,
         });
         setPaymentCache((prev) => ({ ...prev, [order.id]: paid }));
         await syncDashboard();
         await loadOrderDetail(order.id);
+        navigateToScreen('payment_result', { orderId: order.id });
         showToast('支付成功，订单已进入待到达');
       } catch (error) {
         applyError(error, '支付失败');
@@ -850,6 +891,7 @@ export function useMimiAppController() {
       try {
         setSelectedPolicyId(policyId);
         setSelectedPolicy(await api.getPolicyDocument(policyId));
+        navigateToScreen('policy_detail', { policyId });
       } catch (error) {
         applyError(error, '政策详情加载失败');
       }
@@ -867,12 +909,83 @@ export function useMimiAppController() {
     }
   }, [policyAnswer, showToast]);
 
+  const favoriteSelectedPolicy = useCallback(async () => {
+    if (!selectedPolicy) return;
+    setBusyKey('policy-favorite');
+    try {
+      const favorite = await api.createPolicyFavorite({
+        policyId: selectedPolicy.id,
+        title: selectedPolicy.title,
+        district: selectedPolicy.district,
+      });
+      setPolicyFavorites((prev) => [favorite, ...prev.filter((item) => item.policyId !== favorite.policyId)]);
+      showToast('已收藏政策');
+    } catch (error) {
+      applyError(error, '收藏政策失败');
+    } finally {
+      setBusyKey('');
+    }
+  }, [applyError, selectedPolicy, showToast]);
+
+  const submitComplaint = useCallback(async () => {
+    const order = selectedOrder;
+    setBusyKey('complaint');
+    try {
+      await api.createComplaint({
+        orderId: order?.id,
+        targetUserId: order?.sellerUserId,
+        category: 'service_quality',
+        content: '服务过程存在异常，需要平台介入。',
+      });
+      showToast('投诉已提交');
+    } catch (error) {
+      applyError(error, '投诉提交失败');
+    } finally {
+      setBusyKey('');
+    }
+  }, [applyError, selectedOrder, showToast]);
+
+  const submitDispute = useCallback(async () => {
+    if (!selectedOrder) return;
+    setBusyKey('dispute');
+    try {
+      await api.createDispute({
+        orderId: selectedOrder.id,
+        respondentUserId: selectedOrder.sellerUserId,
+        reason: 'refund',
+        description: '申请平台协助处理退款争议。',
+        requestedRefundFen: selectedOrder.depositFen || selectedOrder.amountFen,
+      });
+      showToast('争议已提交');
+    } catch (error) {
+      applyError(error, '争议提交失败');
+    } finally {
+      setBusyKey('');
+    }
+  }, [applyError, selectedOrder, showToast]);
+
+  const loadAdminDashboard = useCallback(async () => {
+    setBusyKey('admin-dashboard');
+    try {
+      setAdminDashboard(await api.getAdminDashboard());
+      showToast('管理后台已刷新');
+    } catch (error) {
+      applyError(error, '管理后台加载失败');
+    } finally {
+      setBusyKey('');
+    }
+  }, [applyError, showToast]);
+
   return {
     ui: {
       booting,
       authenticated,
       activeTab,
-      setActiveTab,
+      setActiveTab: switchTab,
+      screen,
+      screenParams,
+      navigateToScreen,
+      returnToTab,
       loading,
       busyKey,
       errorMessage,
@@ -956,10 +1069,18 @@ export function useMimiAppController() {
       askPolicy,
       loadPolicyDetail,
       copyPolicyAnswer,
+      favoriteSelectedPolicy,
+      policyFavorites,
       selectedPolicyDistrict,
       setSelectedPolicyDistrict,
       policyDistricts,
       visiblePolicyDocs,
+    },
+    governance: {
+      adminDashboard,
+      loadAdminDashboard,
+      submitComplaint,
+      submitDispute,
     },
     dashboard: {
       providerCards,

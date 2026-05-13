@@ -11,4 +11,5 @@ export const env = {
     'change-me',
   paymentMerchantId: process.env.PAYMENT_MERCHANT_ID || 'mimi-demo-merchant',
   paymentNotifySecret: process.env.PAYMENT_NOTIFY_SECRET || 'mimi-demo-notify-secret',
+  deepSeekApiKey: process.env.DEEPSEEK_API_KEY,
 };

@@ -58,7 +58,41 @@ export interface AskPolicyResponse {
   answer: string;
   mode: string;
   model: string;
+  checklist?: string[];
+  citations?: Array<{ id: string; title: string; sourceName: string; district: string }>;
   contexts: KnowledgePreview[];
+}
+
+export interface PolicyFavoriteRecord {
+  id: string;
+  userId: string;
+  policyId: string;
+  title: string;
+  district?: string;
+  createdAt: string;
+}
+
+export interface ComplaintRecord {
+  id: string;
+  orderId?: string;
+  complainantUserId: string;
+  targetUserId?: string;
+  category: string;
+  content: string;
+  evidenceUrls: string[];
+  status: string;
+  resolution?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminDashboardResponse {
+  providerApplications: Array<{ id: string; userId: string; status: string; services: string[]; createdAt: string }>;
+  complaints: ComplaintRecord[];
+  disputes: Array<{ id: string; orderId: string; status: string; reason: string; description: string; createdAt: string }>;
+  orders: ServiceOrder[];
+  refunds: Array<Record<string, unknown>>;
+  auditLogs: Array<{ id: string; action: string; targetType: string; targetId: string; createdAt: string }>;
 }
 
 export interface PricingQuoteResponse {
@@ -76,14 +110,11 @@ export interface PrepayRiskCheckResponse {
 }
 
 export interface PaymentCreateResponse {
-  paymentId: string;
-  status: PaymentRecord['status'];
-  outTradeNo: string;
+  payment: PaymentRecord;
   channelPayload: {
     payUrl: string;
     appParams: Record<string, string>;
   };
-  payment: PaymentRecord;
 }
 
 export interface ConversationDetailResponse {
@@ -94,6 +125,15 @@ export interface ConversationDetailResponse {
 export interface OrderDetailResponse {
   order: ServiceOrder;
   events: OrderEvent[];
+}
+
+let currentUserId = '';
+
+function requireCurrentUserId(): string {
+  if (!currentUserId) {
+    throw new ApiError('当前用户未初始化，请重新登录', 401);
+  }
+  return currentUserId;
 }
 
 export interface CaregiverMatchCandidate {
@@ -192,6 +232,12 @@ function toQuery(params: Record<string, string | number | boolean | undefined>):
 }
 
 export const api = {
+  setCurrentUserId(userId: string) {
+    currentUserId = userId;
+  },
+  clearCurrentUserId() {
+    currentUserId = '';
+  },
   login(payload: { nickname?: string; phone?: string; avatar?: string }) {
     return request<{ user: UserProfile; session: { userId: string; issuedAt: string } }>('/api/auth/login', {
       method: 'POST',
@@ -255,7 +301,7 @@ export const api = {
   acceptOffer(offerId: string) {
     return request<{ offer: Offer; order: ServiceOrder }>(`/api/offers/${offerId}/accept`, {
       method: 'POST',
-      body: JSON.stringify({}),
+      body: JSON.stringify({ operatorUserId: requireCurrentUserId() }),
     });
   },
   quotePricing(payload: Record<string, unknown>) {
@@ -276,16 +322,20 @@ export const api = {
       body: JSON.stringify(payload),
     });
   },
-  listOrders(params: { status?: string } = {}) {
-    return request<{ items: ServiceOrder[] }>(`/api/orders${toQuery(params)}`);
+  listOrders(params: { status?: string; userId?: string } = {}) {
+    return request<{ items: ServiceOrder[] }>(
+      `/api/orders${toQuery({ ...params, userId: params.userId || requireCurrentUserId() })}`,
+    );
   },
   getOrder(orderId: string) {
-    return request<OrderDetailResponse>(`/api/orders/${orderId}`);
+    return request<OrderDetailResponse>(
+      `/api/orders/${orderId}${toQuery({ operatorUserId: requireCurrentUserId() })}`,
+    );
   },
   transitionOrder(orderId: string, action: 'confirm-arrival' | 'start-service' | 'complete' | 'cancel') {
     return request<ServiceOrder>(`/api/orders/${orderId}/${action}`, {
       method: 'POST',
-      body: JSON.stringify({}),
+      body: JSON.stringify({ operatorUserId: requireCurrentUserId() }),
     });
   },
   prepayCheck(payload: {
@@ -307,31 +357,33 @@ export const api = {
   createPayment(payload: { orderId: string; channel: PaymentChannel; scene: PaymentScene }) {
     return request<PaymentCreateResponse>('/api/payments', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, operatorUserId: requireCurrentUserId() }),
     });
   },
   queryPayment(paymentId: string, payload?: { markPaid?: boolean; providerTradeNo?: string }) {
     return request<PaymentRecord>(`/api/payments/${paymentId}/query`, {
       method: 'POST',
-      body: JSON.stringify(payload || {}),
+      body: JSON.stringify({ ...(payload || {}), operatorUserId: requireCurrentUserId() }),
     });
   },
   refundPayment(paymentId: string, reason: string) {
     return request<{ payment: PaymentRecord; refund: Record<string, unknown> }>(`/api/payments/${paymentId}/refund`, {
       method: 'POST',
-      body: JSON.stringify({ reason }),
+      body: JSON.stringify({ reason, operatorUserId: requireCurrentUserId() }),
     });
   },
-  listConversations() {
-    return request<{ items: Conversation[] }>('/api/messages/conversations');
+  listConversations(userId = requireCurrentUserId()) {
+    return request<{ items: Conversation[] }>(`/api/messages/conversations${toQuery({ userId })}`);
   },
   getConversation(conversationId: string) {
-    return request<ConversationDetailResponse>(`/api/messages/conversations/${conversationId}`);
+    return request<ConversationDetailResponse>(
+      `/api/messages/conversations/${conversationId}${toQuery({ operatorUserId: requireCurrentUserId() })}`,
+    );
   },
   sendMessage(conversationId: string, payload: { content: string }) {
     return request<MessageRecord>(`/api/messages/conversations/${conversationId}`, {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, senderUserId: requireCurrentUserId() }),
     });
   },
   createReview(orderId: string, payload: {
@@ -372,6 +424,7 @@ export const api = {
   },
   reportLocation(payload: {
     orderId?: string;
+    userId?: string;
     lat: number;
     lng: number;
     address?: string;
@@ -379,7 +432,7 @@ export const api = {
   }) {
     return request(`/api/locations/report`, {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, userId: payload.userId || requireCurrentUserId() }),
     });
   },
   buildNavigationLink(payload: {
@@ -406,6 +459,36 @@ export const api = {
     return request<AskPolicyResponse>('/api/ask', {
       method: 'POST',
       body: JSON.stringify({ question }),
+    });
+  },
+  listPolicyFavorites(userId = requireCurrentUserId()) {
+    return request<{ items: PolicyFavoriteRecord[] }>(`/api/policy-favorites${toQuery({ userId })}`);
+  },
+  createPolicyFavorite(payload: { policyId: string; title: string; district?: string }) {
+    return request<PolicyFavoriteRecord>('/api/policy-favorites', {
+      method: 'POST',
+      body: JSON.stringify({ ...payload, userId: requireCurrentUserId() }),
+    });
+  },
+  createComplaint(payload: { orderId?: string; targetUserId?: string; category: string; content: string; evidenceUrls?: string[] }) {
+    return request<ComplaintRecord>('/api/complaints', {
+      method: 'POST',
+      body: JSON.stringify({ ...payload, complainantUserId: requireCurrentUserId() }),
+    });
+  },
+  createDispute(payload: { orderId: string; respondentUserId?: string; reason: string; description: string; requestedRefundFen?: number; evidenceUrls?: string[] }) {
+    return request('/api/disputes', {
+      method: 'POST',
+      body: JSON.stringify({ ...payload, openerUserId: requireCurrentUserId() }),
+    });
+  },
+  getAdminDashboard(adminUserId = requireCurrentUserId()) {
+    return request<AdminDashboardResponse>(`/api/admin/dashboard${toQuery({ adminUserId })}`);
+  },
+  reviewProviderApplication(applicationId: string, status: string, reviewNote?: string) {
+    return request(`/api/admin/provider-applications/${applicationId}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ adminUserId: requireCurrentUserId(), status, reviewNote }),
     });
   },
 };

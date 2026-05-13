@@ -1,6 +1,7 @@
 import React from 'react';
 import { tabs } from '../features/mimi-dashboard/config/constants';
 import { useMimiAppController } from '../features/mimi-dashboard/model/useMimiAppController';
+import { FlowScreen } from '../pages/flow/ui/FlowScreen';
 import { HomePage } from '../pages/home/ui/HomePage';
 import { MessagesPage } from '../pages/messages/ui/MessagesPage';
 import { OrdersPage } from '../pages/orders/ui/OrdersPage';
@@ -43,12 +44,18 @@ const App: React.FC = () => {
       {ui.errorMessage ? <div className="alert-banner">{ui.errorMessage}</div> : null}
 
       <main className="app-main">
-        {ui.activeTab === 'home' ? <HomePage controller={controller} /> : null}
-        {ui.activeTab === 'publish' ? <PublishPage controller={controller} /> : null}
-        {ui.activeTab === 'orders' ? <OrdersPage controller={controller} /> : null}
-        {ui.activeTab === 'messages' ? <MessagesPage controller={controller} /> : null}
-        {ui.activeTab === 'policy' ? <PolicyPage controller={controller} /> : null}
-        {ui.activeTab === 'mine' ? <ProfilePage controller={controller} /> : null}
+        {ui.screen !== 'tab' ? (
+          <FlowScreen controller={controller} />
+        ) : (
+          <>
+            {ui.activeTab === 'home' ? <HomePage controller={controller} /> : null}
+            {ui.activeTab === 'publish' ? <PublishPage controller={controller} /> : null}
+            {ui.activeTab === 'orders' ? <OrdersPage controller={controller} /> : null}
+            {ui.activeTab === 'messages' ? <MessagesPage controller={controller} /> : null}
+            {ui.activeTab === 'policy' ? <PolicyPage controller={controller} /> : null}
+            {ui.activeTab === 'mine' ? <ProfilePage controller={controller} /> : null}
+          </>
+        )}
       </main>
 
       <BottomTabBar activeTab={ui.activeTab} onChange={ui.setActiveTab} />

@@ -61,7 +61,10 @@ export function OrdersPage({ controller }: { controller: MimiAppController }) {
                     meta.tone,
                   ].join(' ')}
                   key={order.id}
-                  onClick={() => void orders.loadOrderDetail(order.id)}
+                  onClick={() => {
+                    void orders.loadOrderDetail(order.id);
+                    ui.navigateToScreen('order_detail', { orderId: order.id });
+                  }}
                   type="button"
                 >
                   <div>
@@ -117,10 +120,10 @@ export function OrdersPage({ controller }: { controller: MimiAppController }) {
                 <button
                   className="primary-btn"
                   disabled={ui.busyKey === `pay-${selectedOrder.id}`}
-                  onClick={() => void orders.payOrder(selectedOrder)}
+                  onClick={() => ui.navigateToScreen('payment_confirm', { orderId: selectedOrder.id })}
                   type="button"
                 >
-                  {ui.busyKey === `pay-${selectedOrder.id}` ? '支付中...' : '支付定金'}
+                  支付定金
                 </button>
               ) : null}
               {selectedOrder.status === 'paid' ? (
@@ -169,16 +172,19 @@ export function OrdersPage({ controller }: { controller: MimiAppController }) {
               <button
                 className="ghost-btn"
                 disabled={ui.busyKey === `location-${selectedOrder.id}`}
-                onClick={() => void orders.reportOrderLocation()}
+                onClick={() => ui.navigateToScreen('navigation', { orderId: selectedOrder.id })}
                 type="button"
               >
-                上报位置
+                导航与位置
               </button>
               {orders.navigationUrl ? (
                 <a className="link-btn" href={orders.navigationUrl} rel="noreferrer" target="_blank">
                   打开导航
                 </a>
               ) : null}
+              <button className="ghost-btn" onClick={() => ui.navigateToScreen('dispute', { orderId: selectedOrder.id })} type="button">
+                投诉/争议
+              </button>
             </div>
 
             {orders.paymentCache[selectedOrder.id] ? (
@@ -247,6 +253,9 @@ export function OrdersPage({ controller }: { controller: MimiAppController }) {
           </div>
           <button className="secondary-btn" disabled={ui.busyKey === `feedback-${selectedOrder.id}`} onClick={() => void orders.submitFeedback()} type="button">
             记录服务反馈
+          </button>
+          <button className="ghost-btn compact-top" onClick={() => ui.navigateToScreen('care_feedback', { orderId: selectedOrder.id })} type="button">
+            打开照护反馈页
           </button>
 
           {orders.orderFeedbacks.length ? (

@@ -32,4 +32,5 @@ class ProviderProfile(TimestampMixin, Base):
     supports_multi_day_care: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     supports_emergency_order: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     cat_care_tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
-
+    accepting_orders: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    service_time_slots: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
