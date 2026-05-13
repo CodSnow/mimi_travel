@@ -22,6 +22,7 @@ def login(
         avatar=payload.avatar,
     )
     token, session = SessionService(user_repo).create_login_session(user.id)
+    db.commit()
     return LoginResponse(
         user=UserResponse.model_validate(user),
         session=LoginSessionResponse(token=token, expires_at=session.expires_at),

@@ -83,9 +83,33 @@ def db(engine) -> Generator[Session, None, None]:
 
 
 @pytest.fixture
-def client(db: Session) -> Generator[TestClient, None, None]:
+def clean_database(engine) -> Generator[None, None, None]:
+    yield
+
+    table_names = ", ".join(f'"{table.name}"' for table in Base.metadata.sorted_tables)
+    if not table_names:
+        return
+
+    with engine.begin() as connection:
+        connection.execute(text(f"TRUNCATE {table_names} CASCADE"))
+
+
+@pytest.fixture
+def client(engine, clean_database) -> Generator[TestClient, None, None]:
+    testing_session_local = sessionmaker(
+        bind=engine,
+        autoflush=False,
+        autocommit=False,
+        expire_on_commit=False,
+        future=True,
+    )
+
     def override_get_db() -> Generator[Session, None, None]:
-        yield db
+        session = testing_session_local()
+        try:
+            yield session
+        finally:
+            session.close()
 
     previous_override = app.dependency_overrides.get(get_db)
     app.dependency_overrides[get_db] = override_get_db

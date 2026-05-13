@@ -1,12 +1,12 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class LoginRequest(BaseModel):
-    phone: str
-    nickname: str
+    phone: str = Field(min_length=1, max_length=32)
+    nickname: str = Field(min_length=1, max_length=64)
     avatar: str | None = None
 
 
