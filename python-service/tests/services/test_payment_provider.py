@@ -12,6 +12,14 @@ def test_create_local_payment_payload():
     )
     assert result["status"] == "pending"
     assert result["channel"] == "alipay"
+    assert result["amount_fen"] == 9900
+    assert result["subject"] == "咪咪出行订单"
+    assert result["app_params"] == {
+        "channel": "alipay",
+        "outTradeNo": "MIMI202605130001",
+        "amountFen": "9900",
+    }
+    assert result["pay_url"].startswith("mimi-travel://local-pay/alipay/")
     assert result["pay_url"].endswith("/MIMI202605130001")
 
 
