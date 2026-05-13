@@ -21,6 +21,8 @@ class Demand(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     title: Mapped[str] = mapped_column(String(128), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     pet_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pet_ids: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    pet_snapshot: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     budget_min_fen: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     budget_max_fen: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     expected_price_fen: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
@@ -36,4 +38,3 @@ class Demand(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     service_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="open")
     selected_offer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
-
