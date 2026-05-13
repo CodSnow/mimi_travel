@@ -13,11 +13,11 @@ class ProviderApplicationRepository:
     def create(
         self,
         user_id: uuid.UUID,
-        services: list,
+        services: list[str],
         base_district: str | None = None,
         intro: str | None = None,
         experience: str | None = None,
-        credential_urls: list | None = None,
+        credential_urls: list[str] | None = None,
         status: str = "pending",
     ) -> ProviderApplication:
         application = ProviderApplication(

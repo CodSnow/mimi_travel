@@ -45,9 +45,12 @@ class PetRepository:
         if pet is None:
             return None
 
+        unknown_fields = sorted(set(fields) - self._UPDATE_FIELDS)
+        if unknown_fields:
+            raise ValueError(f"未知字段: {', '.join(unknown_fields)}")
+
         for field_name, value in fields.items():
-            if field_name in self._UPDATE_FIELDS:
-                setattr(pet, field_name, value)
+            setattr(pet, field_name, value)
 
         self.db.flush()
         self.db.refresh(pet)

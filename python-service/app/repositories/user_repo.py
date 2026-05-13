@@ -2,7 +2,8 @@ import hashlib
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.models.session import SessionRecord
@@ -14,17 +15,20 @@ class UserRepository:
         self.db = db
 
     def upsert_by_phone(self, phone: str, nickname: str, avatar: str | None = None) -> User:
-        user = self.db.execute(select(User).where(User.phone == phone)).scalar_one_or_none()
-        if user is None:
-            user = User(phone=phone, nickname=nickname, avatar=avatar)
-            self.db.add(user)
-        else:
-            user.nickname = nickname
-            user.avatar = avatar
-
-        self.db.flush()
-        self.db.refresh(user)
-        return user
+        stmt = (
+            insert(User)
+            .values(phone=phone, nickname=nickname, avatar=avatar)
+            .on_conflict_do_update(
+                index_elements=[User.phone],
+                set_={
+                    "nickname": nickname,
+                    "avatar": avatar,
+                    "updated_at": func.now(),
+                },
+            )
+            .returning(User)
+        )
+        return self.db.scalars(stmt).one()
 
     def create_session(
         self,
