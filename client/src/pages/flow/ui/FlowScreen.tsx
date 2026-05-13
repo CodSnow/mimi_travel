@@ -265,13 +265,20 @@ function OrderFlow({ controller, order }: { controller: MimiAppController; order
           <DetailItem label="支付状态" value={(order as { paymentStatus?: string }).paymentStatus || '--'} />
         </div>
         <div className="order-actions">
-          {order.status === 'pending_payment' ? <button className="primary-btn" disabled={ui.busyKey === `pay-${order.id}`} onClick={() => void orders.payOrder(order)} type="button">确认并支付</button> : null}
+          {order.status === 'pending_payment' ? <button className="primary-btn" disabled={ui.busyKey === `pay-${order.id}`} onClick={() => void orders.payOrder(order)} type="button">{ui.screen === 'payment_confirm' ? '确认支付' : '进入支付'}</button> : null}
           {order.status === 'paid' ? <button className="secondary-btn" onClick={() => void orders.transitionOrder(order, 'confirm-arrival')} type="button">标记到达</button> : null}
           {order.status === 'arriving' ? <button className="secondary-btn" onClick={() => void orders.transitionOrder(order, 'start-service')} type="button">开始服务</button> : null}
           {order.status === 'serving' ? <button className="secondary-btn" onClick={() => void orders.transitionOrder(order, 'complete')} type="button">完成订单</button> : null}
           <button className="ghost-btn" onClick={() => ui.navigateToScreen('navigation', { orderId: order.id })} type="button">导航与位置</button>
+          <button className="ghost-btn" onClick={() => ui.navigateToScreen('conversation', { orderId: order.id })} type="button">订单会话</button>
           <button className="ghost-btn" onClick={() => ui.navigateToScreen('refund', { orderId: order.id })} type="button">退款/售后</button>
         </div>
+        {ui.screen === 'payment_result' ? (
+          <div className="detail-box compact-top">
+            <h3>支付结果</h3>
+            <p>{orders.paymentCache[order.id]?.outTradeNo || '本地支付已完成'} · {orders.paymentCache[order.id]?.status || order.status}</p>
+          </div>
+        ) : null}
       </section>
       <section className="section-card">
         <div className="section-head">
@@ -333,6 +340,19 @@ function AuxiliaryScreen({ controller }: { controller: MimiAppController }) {
         ) : null}
         {ui.screen === 'refund' ? (
           <button className="danger-btn compact-top" type="button">提交退款申请</button>
+        ) : null}
+        {ui.screen === 'offer_management' ? (
+          <div className="offer-list compact-top">
+            {controller.publish.latestOffers.map((offer) => (
+              <article className="offer-card" key={offer.id}>
+                <div>
+                  <strong>{controller.dashboard.providerCardMap[offer.providerUserId]?.nickname || offer.providerUserId}</strong>
+                  <p>{currency(offer.quoteAmountFen)} · {offer.status}</p>
+                </div>
+                <span className="mini-status">{offer.status}</span>
+              </article>
+            ))}
+          </div>
         ) : null}
       </section>
     </FlowShell>
