@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.internal import identity, profiles
+from app.api.internal import identity, marketplace, profiles
 from app.api.internal.matching import router as matching_router
 from app.api.internal.orders import router as orders_router
 from app.api.internal.pricing import router as pricing_router
@@ -15,4 +15,5 @@ api_router.include_router(pricing_router, prefix="/internal/pricing", tags=["pri
 api_router.include_router(risk_router, prefix="/internal/risk", tags=["risk"])
 api_router.include_router(orders_router, prefix="/internal/orders", tags=["orders"])
 api_router.include_router(identity.router, prefix="/internal/identity", tags=["internal-identity"])
+api_router.include_router(marketplace.router, prefix="/internal/marketplace", tags=["internal-marketplace"])
 api_router.include_router(profiles.router, prefix="/internal/profiles", tags=["internal-profiles"])
