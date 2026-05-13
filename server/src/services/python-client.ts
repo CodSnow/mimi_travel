@@ -47,6 +47,14 @@ import type {
   SendMessageRequest,
 } from '../internal-dto/messages.js';
 import type {
+  AdminDashboardResponse,
+  ComplaintResponse,
+  DisputeResponse,
+  PolicyFavoriteListResponse,
+  PolicyFavoriteResponse,
+  ProviderApplicationResponse,
+} from '../internal-dto/governance.js';
+import type {
   ProviderReviewSummaryRequest,
   ProviderReviewSummaryResponse,
 } from '../internal-dto/reviews.js';
@@ -195,6 +203,41 @@ export class PythonClient {
 
   async listOrderLocations(orderId: string, operatorUserId: string): Promise<LocationListResponse> {
     return this.get(`/internal/locations/orders/${orderId}`, { operatorUserId });
+  }
+
+  async adminDashboard(adminUserId: string): Promise<AdminDashboardResponse> {
+    return this.get('/internal/governance/admin/dashboard', { adminUserId });
+  }
+
+  async reviewProviderApplication(
+    applicationId: string,
+    payload: { adminUserId: string; status: string; reviewNote?: string },
+  ): Promise<{ application: ProviderApplicationResponse }> {
+    return this.post(`/internal/governance/provider-applications/${applicationId}/review`, payload);
+  }
+
+  async createComplaint(payload: Record<string, unknown>): Promise<ComplaintResponse> {
+    return this.post('/internal/governance/complaints', payload);
+  }
+
+  async handleComplaint(complaintId: string, payload: Record<string, unknown>): Promise<ComplaintResponse> {
+    return this.post(`/internal/governance/complaints/${complaintId}/handle`, payload);
+  }
+
+  async createDispute(payload: Record<string, unknown>): Promise<DisputeResponse> {
+    return this.post('/internal/governance/disputes', payload);
+  }
+
+  async handleDispute(disputeId: string, payload: Record<string, unknown>): Promise<DisputeResponse> {
+    return this.post(`/internal/governance/disputes/${disputeId}/handle`, payload);
+  }
+
+  async listPolicyFavorites(userId: string): Promise<PolicyFavoriteListResponse> {
+    return this.get('/internal/governance/policy-favorites', { userId });
+  }
+
+  async createPolicyFavorite(payload: Record<string, unknown>): Promise<PolicyFavoriteResponse> {
+    return this.post('/internal/governance/policy-favorites', payload);
   }
 
   private async get<TResponse>(

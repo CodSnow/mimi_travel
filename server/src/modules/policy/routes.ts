@@ -1,9 +1,13 @@
 import { Router } from 'express';
 
+import { env } from '../../config/env.js';
 import { MimiEngine } from '../../engine.js';
+import { DeepSeekProvider, LocalRagProvider } from '../../services/policy-providers.js';
 
 export function createPolicyRouter(engine: MimiEngine): Router {
   const router = Router();
+  const localRagProvider = new LocalRagProvider();
+  const deepSeekProvider = new DeepSeekProvider(env.deepSeekApiKey);
 
   router.get('/api/knowledge', async (req, res) => {
     try {
@@ -48,34 +52,10 @@ export function createPolicyRouter(engine: MimiEngine): Router {
 
       const knowledge = await engine.readKnowledge();
       const contexts = engine.retrieveDocuments(question, knowledge, 4);
-      const hasEnoughContext = contexts.length > 0 && contexts[0].score >= 6;
-
-      if (!hasEnoughContext) {
-        return res.json({
-          question,
-          answer:
-            '知识库中暂未检索到相关资料，无法确认答案。请换个区县、办理点、材料或托运方式再问一次。',
-          mode: 'no-context',
-          model: 'local-retriever',
-          contexts: [],
-        });
+      if (req.body?.provider === 'deepseek' && !deepSeekProvider.isEnabled()) {
+        return res.json(deepSeekProvider.answerUnavailable(question, knowledge));
       }
-
-      const first = contexts[0];
-      const answer = [
-        `优先参考「${first.title}」：${first.summary}`,
-        `办理材料：${first.materials}`,
-        '通用材料包含：宠物主人身份证原件、宠物有效免疫证、航班号/列车车次、出行日期、现场检疫申报单，并且宠物需到场做健康检查。',
-        '通用提醒：《动物检疫合格证明》有效期通常为5天，建议出行前2-3天办理，并提前电话确认材料和工作时间。',
-      ].join('\n');
-
-      return res.json({
-        question,
-        answer,
-        mode: 'local-rag',
-        model: 'local-retriever',
-        contexts: contexts.map(({ content, ...doc }) => doc),
-      });
+      return res.json(localRagProvider.answer(question, contexts));
     } catch (error: any) {
       return res.status(500).json({ error: error.message });
     }

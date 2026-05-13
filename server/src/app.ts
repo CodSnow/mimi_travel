@@ -4,6 +4,7 @@ import express from 'express';
 import { MimiEngine } from './engine.js';
 import { createAuthRouter } from './modules/auth/routes.js';
 import { createDemandsRouter } from './modules/demands/routes.js';
+import { createGovernanceRouter } from './modules/governance/routes.js';
 import { createLocationsRouter } from './modules/locations/routes.js';
 import { createMatchingRouter } from './modules/matching/routes.js';
 import { createMessagesRouter } from './modules/messages/routes.js';
@@ -35,6 +36,7 @@ export function createApp(pythonServiceBaseUrl: string, internalApiToken: string
   app.use(createSystemRouter());
   app.use(createStateRouter(engine));
   app.use(createPolicyRouter(engine));
+  app.use(createGovernanceRouter(pythonClient));
   app.use(createAuthRouter(domainStore));
   app.use(createUsersRouter(domainStore));
   app.use(createDemandsRouter(pythonClient));
