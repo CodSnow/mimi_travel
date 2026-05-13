@@ -20,7 +20,32 @@ import type {
   OrderTransitionRequest,
 } from '../internal-dto/marketplace.js';
 import type { OrderSnapshotRequest, OrderSnapshotResponse } from '../internal-dto/orders.js';
+import type {
+  LocationListResponse,
+  LocationReportRequest,
+  LocationReportResponse,
+} from '../internal-dto/locations.js';
 import type { PricingQuoteRequest, PricingQuoteResponse } from '../internal-dto/pricing.js';
+import type {
+  PaymentCloseRequest,
+  PaymentCreateRequest,
+  PaymentCreateResponse,
+  PaymentNotifyRequest,
+  PaymentQueryRequest,
+  PaymentResponse,
+  RefundCreateRequest,
+  RefundCreateResponse,
+} from '../internal-dto/payments.js';
+import type {
+  ConversationDetailResponse,
+  ConversationListResponse,
+  ConversationResponse,
+  EnsureOrderConversationRequest,
+  MarkReadRequest,
+  MessageReadResponse,
+  MessageResponse,
+  SendMessageRequest,
+} from '../internal-dto/messages.js';
 import type {
   ProviderReviewSummaryRequest,
   ProviderReviewSummaryResponse,
@@ -118,6 +143,58 @@ export class PythonClient {
 
   async transitionOrder(orderId: string, payload: OrderTransitionRequest): Promise<OrderResponse> {
     return this.post(`/internal/marketplace/orders/${orderId}/transition`, payload);
+  }
+
+  async createPayment(payload: PaymentCreateRequest): Promise<PaymentCreateResponse> {
+    return this.post('/internal/payments', payload);
+  }
+
+  async getPayment(paymentId: string, operatorUserId: string): Promise<PaymentResponse> {
+    return this.get(`/internal/payments/${paymentId}`, { operatorUserId });
+  }
+
+  async queryPayment(paymentId: string, payload: PaymentQueryRequest): Promise<PaymentResponse> {
+    return this.post(`/internal/payments/${paymentId}/query`, payload);
+  }
+
+  async closePayment(paymentId: string, payload: PaymentCloseRequest): Promise<PaymentResponse> {
+    return this.post(`/internal/payments/${paymentId}/close`, payload);
+  }
+
+  async refundPayment(paymentId: string, payload: RefundCreateRequest): Promise<RefundCreateResponse> {
+    return this.post(`/internal/payments/${paymentId}/refund`, payload);
+  }
+
+  async notifyPayment(payload: PaymentNotifyRequest): Promise<PaymentResponse> {
+    return this.post('/internal/payments/notify', payload);
+  }
+
+  async listConversations(userId: string): Promise<ConversationListResponse> {
+    return this.get('/internal/messages/conversations', { userId });
+  }
+
+  async ensureOrderConversation(payload: EnsureOrderConversationRequest): Promise<ConversationResponse> {
+    return this.post('/internal/messages/conversations/ensure-order', payload);
+  }
+
+  async getConversation(conversationId: string, operatorUserId: string): Promise<ConversationDetailResponse> {
+    return this.get(`/internal/messages/conversations/${conversationId}`, { operatorUserId });
+  }
+
+  async sendMessage(conversationId: string, payload: SendMessageRequest): Promise<MessageResponse> {
+    return this.post(`/internal/messages/conversations/${conversationId}`, payload);
+  }
+
+  async markMessageRead(payload: MarkReadRequest): Promise<MessageReadResponse> {
+    return this.post('/internal/messages/read', payload);
+  }
+
+  async reportLocation(payload: LocationReportRequest): Promise<LocationReportResponse> {
+    return this.post('/internal/locations/report', payload);
+  }
+
+  async listOrderLocations(orderId: string, operatorUserId: string): Promise<LocationListResponse> {
+    return this.get(`/internal/locations/orders/${orderId}`, { operatorUserId });
   }
 
   private async get<TResponse>(

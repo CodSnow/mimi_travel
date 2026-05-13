@@ -42,11 +42,11 @@ export function createApp(pythonServiceBaseUrl: string, internalApiToken: string
   app.use(createMatchingRouter(pythonClient));
   app.use(createProvidersRouter(pythonClient, domainStore));
   app.use(createPricingRouter(pythonClient));
-  app.use(createPaymentsRouter(pythonClient, domainStore));
+  app.use(createPaymentsRouter(pythonClient));
   app.use(createOrdersRouter(pythonClient, domainStore));
-  app.use(createMessagesRouter(domainStore));
+  app.use(createMessagesRouter(pythonClient));
   app.use(createReviewsRouter(domainStore));
-  app.use(createLocationsRouter(domainStore));
+  app.use(createLocationsRouter(pythonClient, domainStore));
   app.use(createNavigationRouter(navigationService));
 
   return app;
