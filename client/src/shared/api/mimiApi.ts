@@ -58,7 +58,41 @@ export interface AskPolicyResponse {
   answer: string;
   mode: string;
   model: string;
+  checklist?: string[];
+  citations?: Array<{ id: string; title: string; sourceName: string; district: string }>;
   contexts: KnowledgePreview[];
+}
+
+export interface PolicyFavoriteRecord {
+  id: string;
+  userId: string;
+  policyId: string;
+  title: string;
+  district?: string;
+  createdAt: string;
+}
+
+export interface ComplaintRecord {
+  id: string;
+  orderId?: string;
+  complainantUserId: string;
+  targetUserId?: string;
+  category: string;
+  content: string;
+  evidenceUrls: string[];
+  status: string;
+  resolution?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminDashboardResponse {
+  providerApplications: Array<{ id: string; userId: string; status: string; services: string[]; createdAt: string }>;
+  complaints: ComplaintRecord[];
+  disputes: Array<{ id: string; orderId: string; status: string; reason: string; description: string; createdAt: string }>;
+  orders: ServiceOrder[];
+  refunds: Array<Record<string, unknown>>;
+  auditLogs: Array<{ id: string; action: string; targetType: string; targetId: string; createdAt: string }>;
 }
 
 export interface PricingQuoteResponse {
@@ -425,6 +459,36 @@ export const api = {
     return request<AskPolicyResponse>('/api/ask', {
       method: 'POST',
       body: JSON.stringify({ question }),
+    });
+  },
+  listPolicyFavorites(userId = requireCurrentUserId()) {
+    return request<{ items: PolicyFavoriteRecord[] }>(`/api/policy-favorites${toQuery({ userId })}`);
+  },
+  createPolicyFavorite(payload: { policyId: string; title: string; district?: string }) {
+    return request<PolicyFavoriteRecord>('/api/policy-favorites', {
+      method: 'POST',
+      body: JSON.stringify({ ...payload, userId: requireCurrentUserId() }),
+    });
+  },
+  createComplaint(payload: { orderId?: string; targetUserId?: string; category: string; content: string; evidenceUrls?: string[] }) {
+    return request<ComplaintRecord>('/api/complaints', {
+      method: 'POST',
+      body: JSON.stringify({ ...payload, complainantUserId: requireCurrentUserId() }),
+    });
+  },
+  createDispute(payload: { orderId: string; respondentUserId?: string; reason: string; description: string; requestedRefundFen?: number; evidenceUrls?: string[] }) {
+    return request('/api/disputes', {
+      method: 'POST',
+      body: JSON.stringify({ ...payload, openerUserId: requireCurrentUserId() }),
+    });
+  },
+  getAdminDashboard(adminUserId = requireCurrentUserId()) {
+    return request<AdminDashboardResponse>(`/api/admin/dashboard${toQuery({ adminUserId })}`);
+  },
+  reviewProviderApplication(applicationId: string, status: string, reviewNote?: string) {
+    return request(`/api/admin/provider-applications/${applicationId}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ adminUserId: requireCurrentUserId(), status, reviewNote }),
     });
   },
 };

@@ -14,7 +14,9 @@ import {
   ApiError,
   api,
   type AskPolicyResponse,
+  type AdminDashboardResponse,
   type CaregiverMatchCandidate,
+  type PolicyFavoriteRecord,
   type DriverMatchCandidate,
   type KnowledgePreview,
   type PaymentCreateResponse,
@@ -99,7 +101,9 @@ export function useMimiAppController() {
   const [selectedPolicy, setSelectedPolicy] = useState<PolicyDocument | null>(null);
   const [policyQuestion, setPolicyQuestion] = useState('杭州办理《动物检疫合格证明》需要哪些材料？');
   const [policyAnswer, setPolicyAnswer] = useState<AskPolicyResponse | null>(null);
+  const [policyFavorites, setPolicyFavorites] = useState<PolicyFavoriteRecord[]>([]);
   const [selectedPolicyDistrict, setSelectedPolicyDistrict] = useState('全部');
+  const [adminDashboard, setAdminDashboard] = useState<AdminDashboardResponse | null>(null);
 
   const [demandForm, setDemandForm] = useState<DemandFormState>(() => createDefaultDemandForm());
   const [homeTab, setHomeTab] = useState<'buddy' | 'car'>('buddy');
@@ -358,6 +362,12 @@ export function useMimiAppController() {
           setSelectedPolicy(null);
         }
       }
+      try {
+        const favorites = await api.listPolicyFavorites(meResult.value.id);
+        setPolicyFavorites(favorites.items);
+      } catch {
+        setPolicyFavorites([]);
+      }
     } catch (error) {
       applyError(error, '初始化数据失败');
     } finally {
@@ -493,6 +503,8 @@ export function useMimiAppController() {
     setSelectedPolicyId('');
     setSelectedPolicy(null);
     setPolicyAnswer(null);
+    setPolicyFavorites([]);
+    setAdminDashboard(null);
     setOrderFilter('all');
     setDemandForm(createDefaultDemandForm());
     setHomeTab('buddy');
@@ -897,6 +909,73 @@ export function useMimiAppController() {
     }
   }, [policyAnswer, showToast]);
 
+  const favoriteSelectedPolicy = useCallback(async () => {
+    if (!selectedPolicy) return;
+    setBusyKey('policy-favorite');
+    try {
+      const favorite = await api.createPolicyFavorite({
+        policyId: selectedPolicy.id,
+        title: selectedPolicy.title,
+        district: selectedPolicy.district,
+      });
+      setPolicyFavorites((prev) => [favorite, ...prev.filter((item) => item.policyId !== favorite.policyId)]);
+      showToast('已收藏政策');
+    } catch (error) {
+      applyError(error, '收藏政策失败');
+    } finally {
+      setBusyKey('');
+    }
+  }, [applyError, selectedPolicy, showToast]);
+
+  const submitComplaint = useCallback(async () => {
+    const order = selectedOrder;
+    setBusyKey('complaint');
+    try {
+      await api.createComplaint({
+        orderId: order?.id,
+        targetUserId: order?.sellerUserId,
+        category: 'service_quality',
+        content: '服务过程存在异常，需要平台介入。',
+      });
+      showToast('投诉已提交');
+    } catch (error) {
+      applyError(error, '投诉提交失败');
+    } finally {
+      setBusyKey('');
+    }
+  }, [applyError, selectedOrder, showToast]);
+
+  const submitDispute = useCallback(async () => {
+    if (!selectedOrder) return;
+    setBusyKey('dispute');
+    try {
+      await api.createDispute({
+        orderId: selectedOrder.id,
+        respondentUserId: selectedOrder.sellerUserId,
+        reason: 'refund',
+        description: '申请平台协助处理退款争议。',
+        requestedRefundFen: selectedOrder.depositFen || selectedOrder.amountFen,
+      });
+      showToast('争议已提交');
+    } catch (error) {
+      applyError(error, '争议提交失败');
+    } finally {
+      setBusyKey('');
+    }
+  }, [applyError, selectedOrder, showToast]);
+
+  const loadAdminDashboard = useCallback(async () => {
+    setBusyKey('admin-dashboard');
+    try {
+      setAdminDashboard(await api.getAdminDashboard());
+      showToast('管理后台已刷新');
+    } catch (error) {
+      applyError(error, '管理后台加载失败');
+    } finally {
+      setBusyKey('');
+    }
+  }, [applyError, showToast]);
+
   return {
     ui: {
       booting,
@@ -990,10 +1069,18 @@ export function useMimiAppController() {
       askPolicy,
       loadPolicyDetail,
       copyPolicyAnswer,
+      favoriteSelectedPolicy,
+      policyFavorites,
       selectedPolicyDistrict,
       setSelectedPolicyDistrict,
       policyDistricts,
       visiblePolicyDocs,
+    },
+    governance: {
+      adminDashboard,
+      loadAdminDashboard,
+      submitComplaint,
+      submitDispute,
     },
     dashboard: {
       providerCards,

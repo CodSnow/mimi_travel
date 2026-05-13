@@ -6,7 +6,7 @@ import { assets } from '../../../shared/lib/assets';
 import { DetailItem, EmptyBlock } from '../../../shared/ui/common';
 
 export function FlowScreen({ controller }: { controller: MimiAppController }) {
-  const { ui, dashboard, publish, orders, messages, policy, profile } = controller;
+  const { ui, dashboard, publish, orders, messages, policy, profile, governance } = controller;
   const demand = dashboard.demands.find((item) => item.id === ui.screenParams.demandId) || publish.latestDemand;
   const provider = ui.screenParams.providerUserId ? dashboard.providerCardMap[ui.screenParams.providerUserId] : undefined;
   const order = ui.screenParams.orderId
@@ -204,6 +204,7 @@ export function FlowScreen({ controller }: { controller: MimiAppController }) {
               <p><strong>办理材料：</strong>{policy.selectedPolicy.materials}</p>
               <p>{policy.selectedPolicy.content}</p>
             </div>
+            <button className="primary-btn" onClick={() => void policy.favoriteSelectedPolicy()} type="button">收藏政策</button>
           </section>
         ) : (
           <EmptyBlock description="请选择一篇政策文档。" image={assets.policyCat} title="暂无政策详情" />
@@ -304,7 +305,7 @@ function OrderFlow({ controller, order }: { controller: MimiAppController; order
 }
 
 function AuxiliaryScreen({ controller }: { controller: MimiAppController }) {
-  const { ui, profile, orders } = controller;
+  const { ui, profile, orders, policy, governance } = controller;
   const titleMap: Record<string, string> = {
     care_feedback: '照护服务反馈',
     pets: '宠物档案',
@@ -339,7 +340,36 @@ function AuxiliaryScreen({ controller }: { controller: MimiAppController }) {
           <button className="primary-btn compact-top" onClick={() => void orders.submitFeedback()} type="button">提交照护反馈</button>
         ) : null}
         {ui.screen === 'refund' ? (
-          <button className="danger-btn compact-top" type="button">提交退款申请</button>
+          <button className="danger-btn compact-top" onClick={() => void governance.submitDispute()} type="button">提交退款争议</button>
+        ) : null}
+        {ui.screen === 'dispute' ? (
+          <div className="order-actions compact-top">
+            <button className="danger-btn" onClick={() => void governance.submitComplaint()} type="button">提交投诉</button>
+            <button className="ghost-btn" onClick={() => void governance.submitDispute()} type="button">提交争议</button>
+          </div>
+        ) : null}
+        {ui.screen === 'favorites' ? (
+          <div className="policy-doc-list compact-top">
+            {policy.policyFavorites.map((favorite) => (
+              <article className="policy-doc" key={favorite.id}>
+                <strong>{favorite.title}</strong>
+                <p>{favorite.district || '全部区县'} · {formatDateTime(favorite.createdAt)}</p>
+              </article>
+            ))}
+          </div>
+        ) : null}
+        {ui.screen === 'admin' ? (
+          <div className="compact-top">
+            <button className="primary-btn" disabled={ui.busyKey === 'admin-dashboard'} onClick={() => void governance.loadAdminDashboard()} type="button">刷新管理数据</button>
+            {governance.adminDashboard ? (
+              <div className="detail-grid compact-top">
+                <DetailItem label="服务者申请" value={String(governance.adminDashboard.providerApplications.length)} />
+                <DetailItem label="投诉" value={String(governance.adminDashboard.complaints.length)} />
+                <DetailItem label="争议" value={String(governance.adminDashboard.disputes.length)} />
+                <DetailItem label="退款" value={String(governance.adminDashboard.refunds.length)} />
+              </div>
+            ) : null}
+          </div>
         ) : null}
         {ui.screen === 'offer_management' ? (
           <div className="offer-list compact-top">

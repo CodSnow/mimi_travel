@@ -38,6 +38,16 @@ export function PolicyPage({ controller }: { controller: MimiAppController }) {
         </div>
         <div className="answer-body">
           <p>{policy.policyAnswer?.answer || '输入问题后，系统会结合知识库返回办理建议与政策说明。'}</p>
+          {policy.policyAnswer?.checklist?.length ? (
+            <ul className="reason-list compact-top">
+              {policy.policyAnswer.checklist.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          ) : null}
+          {policy.policyAnswer?.citations?.length ? (
+            <div className="tag-row compact-top">
+              {policy.policyAnswer.citations.map((item) => <span className="tag" key={item.id}>{item.district} · {item.sourceName}</span>)}
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -115,6 +125,7 @@ export function PolicyPage({ controller }: { controller: MimiAppController }) {
               <h3>{policy.selectedPolicy.title}</h3>
               <p>{policy.selectedPolicy.sourceName}</p>
             </div>
+            <button className="ghost-btn compact-btn" onClick={() => void policy.favoriteSelectedPolicy()} type="button">收藏</button>
           </div>
           <div className="policy-content">
             <p>{policy.selectedPolicy.summary}</p>
