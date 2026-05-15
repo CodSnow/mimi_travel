@@ -35,6 +35,50 @@ export function createUsersRouter(domainStore: DomainStore, pythonClient: Python
     }
   });
 
+  router.get('/api/pets', async (req, res) => {
+    const userId = typeof req.query.userId === 'string' ? req.query.userId : getLastPythonUser()?.id;
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+    try {
+      return res.json({ items: await pythonClient.listPets(userId) });
+    } catch (error) {
+      return handlePythonOrDomainError(error, res, 'unexpected pet error');
+    }
+  });
+
+  router.post('/api/pets', async (req, res) => {
+    const userId = req.body?.userId || getLastPythonUser()?.id;
+    if (!userId || !req.body?.name) return res.status(400).json({ error: 'userId and name are required' });
+    try {
+      const pet = await pythonClient.createPet({ ...req.body, userId });
+      return res.status(201).json(pet);
+    } catch (error) {
+      return handlePythonOrDomainError(error, res, 'unexpected pet error');
+    }
+  });
+
+  router.get('/api/addresses', async (req, res) => {
+    const userId = typeof req.query.userId === 'string' ? req.query.userId : getLastPythonUser()?.id;
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+    try {
+      return res.json({ items: await pythonClient.listAddresses(userId) });
+    } catch (error) {
+      return handlePythonOrDomainError(error, res, 'unexpected address error');
+    }
+  });
+
+  router.post('/api/addresses', async (req, res) => {
+    const userId = req.body?.userId || getLastPythonUser()?.id;
+    if (!userId || !req.body?.label || !req.body?.address) {
+      return res.status(400).json({ error: 'userId, label and address are required' });
+    }
+    try {
+      const address = await pythonClient.createAddress({ ...req.body, userId });
+      return res.status(201).json(address);
+    } catch (error) {
+      return handlePythonOrDomainError(error, res, 'unexpected address error');
+    }
+  });
+
   router.get('/api/providers/:userId', async (req, res) => {
     try {
       const bundle = await pythonClient.getProvider(req.params.userId);
@@ -53,7 +97,7 @@ export function createUsersRouter(domainStore: DomainStore, pythonClient: Python
           return handleDomainError(fallbackError, res, 'unexpected provider error');
         }
       }
-      return handleDomainError(error, res, 'unexpected provider error');
+      return handlePythonOrDomainError(error, res, 'unexpected provider error');
     }
   });
 
@@ -74,16 +118,33 @@ export function createUsersRouter(domainStore: DomainStore, pythonClient: Python
           return handleDomainError(fallbackError, res, 'unexpected provider error');
         }
       }
-      return handleDomainError(error, res, 'unexpected provider error');
+      return handlePythonOrDomainError(error, res, 'unexpected provider error');
     }
   });
 
   router.post('/api/providers/apply', async (req, res) => {
     try {
-      const result = await domainStore.applyProvider(req.body || {});
-      return res.status(201).json(result);
+      const userId = req.body?.userId || getLastPythonUser()?.id;
+      if (!userId) return res.status(400).json({ error: 'userId is required' });
+      const application = await pythonClient.createProviderApplication({
+        userId,
+        services: req.body?.services || ['buddy'],
+        baseDistrict: req.body?.baseDistrict,
+        intro: req.body?.intro,
+        experience: req.body?.experience,
+        credentialUrls: req.body?.credentialUrls || [],
+      });
+      return res.status(201).json({ application });
     } catch (error) {
-      return handleDomainError(error, res, 'unexpected provider error');
+      if (error instanceof PythonClientError && error.statusCode === 503) {
+        try {
+          const result = await domainStore.applyProvider(req.body || {});
+          return res.status(201).json(result);
+        } catch (fallbackError) {
+          return handleDomainError(fallbackError, res, 'unexpected provider error');
+        }
+      }
+      return handlePythonOrDomainError(error, res, 'unexpected provider error');
     }
   });
 
@@ -151,4 +212,19 @@ function toVehicleProfile(vehicle: PythonVehicleProfile): VehicleProfile {
     petFriendly: vehicle.petFriendly,
     petFriendlyTags: vehicle.petFriendlyTags,
   };
+}
+
+function handlePythonOrDomainError(error: unknown, res: import('express').Response, fallback: string) {
+  if (error instanceof PythonClientError) {
+    return res.status(error.statusCode).json({
+      error: pythonErrorMessage(error),
+      details: error.details,
+    });
+  }
+  return handleDomainError(error, res, fallback);
+}
+
+function pythonErrorMessage(error: PythonClientError): string {
+  const details = error.details as { detail?: unknown } | undefined;
+  return typeof details?.detail === 'string' ? details.detail : error.message;
 }

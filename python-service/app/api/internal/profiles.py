@@ -11,6 +11,7 @@ from app.repositories.provider_application_repo import ProviderApplicationReposi
 from app.repositories.provider_repo import ProviderRepository
 from app.schemas.profile import (
     AddressResponse,
+    AddressCreateRequest,
     PetCreateRequest,
     PetResponse,
     ProviderApplicationCreateRequest,
@@ -137,6 +138,17 @@ def list_addresses(
 ) -> list[AddressResponse]:
     addresses = AddressRepository(db).list_by_user(user_id=user_id)
     return [AddressResponse.model_validate(address) for address in addresses]
+
+
+@router.post("/addresses", response_model=AddressResponse)
+def create_address(
+    payload: AddressCreateRequest,
+    db: Session = Depends(get_db),
+) -> AddressResponse:
+    _require_user(db, payload.user_id)
+    address = AddressRepository(db).create(**payload.model_dump())
+    db.commit()
+    return AddressResponse.model_validate(address)
 
 
 @router.post("/provider-applications", response_model=ProviderApplicationResponse)

@@ -320,6 +320,7 @@ function AuxiliaryScreen({ controller }: { controller: MimiAppController }) {
     admin: '管理后台',
   };
   const title = titleMap[ui.screen] || '功能页';
+  const canSubmitFeedback = Boolean(orders.selectedOrder && profile.user?.id === orders.selectedOrder.sellerUserId);
   return (
     <FlowShell controller={controller} title={title}>
       <section className="section-card">
@@ -333,11 +334,99 @@ function AuxiliaryScreen({ controller }: { controller: MimiAppController }) {
           <DetailItem label="当前用户" value={profile.user?.nickname || '--'} />
           <DetailItem label="相关订单" value={ui.screenParams.orderId || orders.selectedOrder?.id || '--'} />
         </div>
+        {ui.screen === 'pets' ? (
+          <div className="offer-list compact-top">
+            <button
+              className="primary-btn"
+              disabled={ui.busyKey === 'create-pet'}
+              onClick={() => void profile.createDemoPet()}
+              type="button"
+            >
+              新增宠物档案
+            </button>
+            {profile.pets.map((pet) => (
+              <article className="offer-card" key={pet.id}>
+                <div>
+                  <strong>{pet.avatar || '🐱'} {pet.name}</strong>
+                  <p>{pet.breed || '未填写品种'} · {pet.weight || '未填写体重'}</p>
+                  <p>{pet.vaccine || '疫苗信息待补充'} · {pet.certificate || '检疫证明待办理'}</p>
+                </div>
+                <span className="mini-status">{formatDateTime(pet.updatedAt)}</span>
+              </article>
+            ))}
+            {!profile.pets.length ? (
+              <EmptyBlock description="保存后会写入 Python/PostgreSQL，并在这里展示。" image={assets.homeCat} title="暂无宠物档案" />
+            ) : null}
+          </div>
+        ) : null}
+        {ui.screen === 'addresses' ? (
+          <div className="offer-list compact-top">
+            <button
+              className="primary-btn"
+              disabled={ui.busyKey === 'create-address'}
+              onClick={() => void profile.createDemoAddress()}
+              type="button"
+            >
+              新增常用地址
+            </button>
+            {profile.addresses.map((address) => (
+              <article className="offer-card" key={address.id}>
+                <div>
+                  <strong>{address.label}{address.isDefault ? ' · 默认' : ''}</strong>
+                  <p>{address.district || '杭州'} · {address.address}</p>
+                  <p>{address.contactName || profile.user?.nickname || '--'} · {address.contactPhone || profile.user?.phone || '--'}</p>
+                </div>
+                <span className="mini-status">{formatDateTime(address.updatedAt)}</span>
+              </article>
+            ))}
+            {!profile.addresses.length ? (
+              <EmptyBlock description="保存后会作为发单和接送地址的用户资料。" image={assets.routeDog} title="暂无常用地址" />
+            ) : null}
+          </div>
+        ) : null}
         {ui.screen === 'provider_onboarding' ? (
           <button className="primary-btn compact-top" onClick={() => void profile.applyAsProvider()} type="button">提交入驻申请</button>
         ) : null}
         {ui.screen === 'care_feedback' ? (
-          <button className="primary-btn compact-top" onClick={() => void orders.submitFeedback()} type="button">提交照护反馈</button>
+          <div className="compact-top">
+            <div className="form-grid">
+              <label className="full-span">
+                服务反馈
+                <textarea
+                  rows={3}
+                  value={orders.feedbackDraft}
+                  onChange={(event) => orders.setFeedbackDraft(event.target.value)}
+                />
+              </label>
+            </div>
+            <button
+              className="primary-btn"
+              disabled={!canSubmitFeedback || ui.busyKey === `feedback-${ui.screenParams.orderId || orders.selectedOrder?.id}`}
+              onClick={() => void orders.submitFeedback(ui.screenParams.orderId)}
+              type="button"
+            >
+              {canSubmitFeedback ? '提交照护反馈' : '服务者可提交照护反馈'}
+            </button>
+            <div className="feedback-list compact-top">
+              {orders.orderFeedbacks.map((feedback) => (
+                <article className="feedback-card" key={feedback.id}>
+                  <strong>{formatDateTime(feedback.createdAt)}</strong>
+                  <p>{feedback.note || '服务反馈已提交'}</p>
+                  <div className="tag-row">
+                    {feedback.photoUrls.map((item) => (
+                      <a className="tag" href={item} key={item} rel="noreferrer" target="_blank">反馈图片</a>
+                    ))}
+                    {feedback.videoUrls.map((item) => (
+                      <a className="tag" href={item} key={item} rel="noreferrer" target="_blank">反馈视频</a>
+                    ))}
+                  </div>
+                </article>
+              ))}
+              {!orders.orderFeedbacks.length ? (
+                <EmptyBlock description="提交反馈后会在当前订单下持续展示。" image={assets.postCarrier} title="暂无服务反馈" />
+              ) : null}
+            </div>
+          </div>
         ) : null}
         {ui.screen === 'refund' ? (
           <button className="danger-btn compact-top" onClick={() => void governance.submitDispute()} type="button">提交退款争议</button>
@@ -390,8 +479,11 @@ function AuxiliaryScreen({ controller }: { controller: MimiAppController }) {
 }
 
 function auxiliaryDescription(screen: string): string {
-  if (['dispute', 'admin'].includes(screen)) return '治理类主写能力将在 Phase 5 接入；当前 H5 保留入口和处理状态。';
-  if (['pets', 'addresses', 'favorites', 'payments'].includes(screen)) return '该页面展示用户侧资料和交易辅助信息，后续可继续细化字段。';
+  if (['dispute', 'admin'].includes(screen)) return '治理类主写能力已接入平台后端，当前 H5 保留处理入口和状态。';
+  if (screen === 'pets') return '宠物档案已接入 Python/PostgreSQL，可通过 H5 创建并读取。';
+  if (screen === 'addresses') return '常用地址已接入 Python/PostgreSQL，可作为发单和接送资料。';
+  if (screen === 'care_feedback') return '照护反馈会写入订单记录，并同步更新订单反馈摘要。';
+  if (['favorites', 'payments'].includes(screen)) return '该页面展示用户侧资料和交易辅助信息。';
   return '该流程页已纳入 H5 导航体系，可从主链路进入。';
 }
 

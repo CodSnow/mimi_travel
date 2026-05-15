@@ -62,6 +62,12 @@ import type {
   PrepayRiskCheckRequest,
   PrepayRiskCheckResponse,
 } from '../internal-dto/risk.js';
+import type {
+  AddressRecord,
+  PetRecord,
+  PythonReviewRecord,
+  PythonServiceFeedbackRecord,
+} from '../internal-dto/profile.js';
 
 export interface PythonLoginResponse {
   user: {
@@ -157,6 +163,26 @@ export class PythonClient {
     return this.get(`/internal/profiles/providers/${userId}`);
   }
 
+  async listPets(userId: string): Promise<PetRecord[]> {
+    return this.get('/internal/profiles/pets', { userId });
+  }
+
+  async createPet(payload: Record<string, unknown>): Promise<PetRecord> {
+    return this.post('/internal/profiles/pets', payload);
+  }
+
+  async listAddresses(userId: string): Promise<AddressRecord[]> {
+    return this.get('/internal/profiles/addresses', { userId });
+  }
+
+  async createAddress(payload: Record<string, unknown>): Promise<AddressRecord> {
+    return this.post('/internal/profiles/addresses', payload);
+  }
+
+  async createProviderApplication(payload: Record<string, unknown>): Promise<ProviderApplicationResponse> {
+    return this.post('/internal/profiles/provider-applications', payload);
+  }
+
   async matchCaregivers(payload: CaregiverMatchRequest): Promise<CaregiverMatchResponse> {
     return this.post('/internal/matching/caregivers', payload);
   }
@@ -169,6 +195,22 @@ export class PythonClient {
     payload: ProviderReviewSummaryRequest,
   ): Promise<ProviderReviewSummaryResponse> {
     return this.post('/internal/reviews/provider-summary', payload);
+  }
+
+  async createReview(orderId: string, payload: Record<string, unknown>): Promise<PythonReviewRecord> {
+    return this.post(`/internal/reviews/orders/${orderId}/reviews`, payload);
+  }
+
+  async listProviderReviews(providerUserId: string): Promise<{ items: PythonReviewRecord[] }> {
+    return this.get(`/internal/reviews/providers/${providerUserId}/reviews`);
+  }
+
+  async createFeedback(orderId: string, payload: Record<string, unknown>): Promise<PythonServiceFeedbackRecord> {
+    return this.post(`/internal/reviews/orders/${orderId}/feedback`, payload);
+  }
+
+  async listFeedback(orderId: string): Promise<{ items: PythonServiceFeedbackRecord[] }> {
+    return this.get(`/internal/reviews/orders/${orderId}/feedback`);
   }
 
   async quote(payload: PricingQuoteRequest): Promise<PricingQuoteResponse> {
