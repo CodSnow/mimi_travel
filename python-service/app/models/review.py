@@ -1,6 +1,7 @@
 import uuid
+from datetime import datetime
 
-from sqlalchemy import ForeignKey, Index, Numeric, Text
+from sqlalchemy import DateTime, ForeignKey, Index, Numeric, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -10,6 +11,7 @@ from app.models.base import Base, UUIDPrimaryKeyMixin
 class Review(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "reviews"
     __table_args__ = (
+        UniqueConstraint("order_id", "reviewer_user_id", name="uq_reviews_order_reviewer"),
         Index("idx_reviews_reviewee_user_id", "reviewee_user_id"),
         Index("idx_reviews_order_id", "order_id"),
     )
@@ -33,4 +35,4 @@ class Review(UUIDPrimaryKeyMixin, Base):
     supports_pet_handling_score: Mapped[float | None] = mapped_column(Numeric(4, 2), nullable=True)
     tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
-
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"))

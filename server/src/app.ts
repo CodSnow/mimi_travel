@@ -47,7 +47,7 @@ export function createApp(pythonServiceBaseUrl: string, internalApiToken: string
   app.use(createPaymentsRouter(pythonClient));
   app.use(createOrdersRouter(pythonClient, domainStore));
   app.use(createMessagesRouter(pythonClient));
-  app.use(createReviewsRouter(domainStore));
+  app.use(createReviewsRouter(domainStore, pythonClient));
   app.use(createLocationsRouter(pythonClient, domainStore));
   app.use(createNavigationRouter(navigationService));
 

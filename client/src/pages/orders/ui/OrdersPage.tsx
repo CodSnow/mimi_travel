@@ -6,9 +6,10 @@ import { assets } from '../../../shared/lib/assets';
 import { DetailItem, EmptyBlock } from '../../../shared/ui/common';
 
 export function OrdersPage({ controller }: { controller: MimiAppController }) {
-  const { ui, orders } = controller;
+  const { ui, orders, profile } = controller;
   const selectedOrder = orders.selectedOrder;
   const selectedOrderStatus = orders.selectedOrderStatus;
+  const canSubmitFeedback = Boolean(selectedOrder && profile.user?.id === selectedOrder.sellerUserId);
 
   return (
     <section className="page-stack orders-page">
@@ -251,8 +252,8 @@ export function OrdersPage({ controller }: { controller: MimiAppController }) {
               />
             </label>
           </div>
-          <button className="secondary-btn" disabled={ui.busyKey === `feedback-${selectedOrder.id}`} onClick={() => void orders.submitFeedback()} type="button">
-            记录服务反馈
+          <button className="secondary-btn" disabled={!canSubmitFeedback || ui.busyKey === `feedback-${selectedOrder.id}`} onClick={() => void orders.submitFeedback()} type="button">
+            {canSubmitFeedback ? '记录服务反馈' : '服务者可记录反馈'}
           </button>
           <button className="ghost-btn compact-top" onClick={() => ui.navigateToScreen('care_feedback', { orderId: selectedOrder.id })} type="button">
             打开照护反馈页

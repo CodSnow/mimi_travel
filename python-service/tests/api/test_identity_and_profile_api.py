@@ -155,6 +155,32 @@ def test_list_addresses(client, engine: Engine):
     assert body[0]["is_default"] is True
 
 
+def test_create_address(client, engine: Engine):
+    user = _create_user(engine, "13800000112")
+    response = client.post(
+        "/internal/profiles/addresses",
+        headers=headers,
+        json={
+            "user_id": str(user.id),
+            "label": "公司",
+            "address": "杭州市西湖区文三路",
+            "district": "西湖区",
+            "contact_name": "咪咪主人",
+            "contact_phone": "13800000112",
+            "lat": 30.26,
+            "lng": 120.12,
+            "is_default": True,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["user_id"] == str(user.id)
+    assert body["label"] == "公司"
+    assert body["district"] == "西湖区"
+    assert body["is_default"] is True
+
+
 def test_create_provider_application(client, engine: Engine):
     user = _create_user(engine)
     payload = {

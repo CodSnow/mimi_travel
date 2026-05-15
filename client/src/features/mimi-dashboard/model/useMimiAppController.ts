@@ -13,6 +13,7 @@ import type {
 import {
   ApiError,
   api,
+  type AddressRecord,
   type AskPolicyResponse,
   type AdminDashboardResponse,
   type CaregiverMatchCandidate,
@@ -20,6 +21,7 @@ import {
   type DriverMatchCandidate,
   type KnowledgePreview,
   type PaymentCreateResponse,
+  type PetProfileRecord,
   type ProviderBundle,
   type ReviewSummary,
 } from '../../../shared/api/mimiApi';
@@ -102,6 +104,8 @@ export function useMimiAppController() {
   const [policyQuestion, setPolicyQuestion] = useState('杭州办理《动物检疫合格证明》需要哪些材料？');
   const [policyAnswer, setPolicyAnswer] = useState<AskPolicyResponse | null>(null);
   const [policyFavorites, setPolicyFavorites] = useState<PolicyFavoriteRecord[]>([]);
+  const [pets, setPets] = useState<PetProfileRecord[]>([]);
+  const [addresses, setAddresses] = useState<AddressRecord[]>([]);
   const [selectedPolicyDistrict, setSelectedPolicyDistrict] = useState('全部');
   const [adminDashboard, setAdminDashboard] = useState<AdminDashboardResponse | null>(null);
 
@@ -272,6 +276,13 @@ export function useMimiAppController() {
     }
   }, []);
 
+  useEffect(() => {
+    const targetOrderId = screenParams.orderId;
+    if (!targetOrderId || targetOrderId === selectedOrderId) return;
+    if (!['care_feedback', 'order_detail', 'payment_confirm', 'payment_result', 'navigation'].includes(screen)) return;
+    void loadOrderDetail(targetOrderId).catch((error) => applyError(error, '订单详情加载失败'));
+  }, [applyError, loadOrderDetail, screen, screenParams.orderId, selectedOrderId]);
+
   const loadOffersForDemand = useCallback(async (demandId: string) => {
     const response = await api.listOffers(demandId);
     setLatestOffers(response.items);
@@ -281,27 +292,23 @@ export function useMimiAppController() {
     setLoading(true);
     setErrorMessage('');
     try {
-      const [meResult, providersResult, demandsResult, ordersResult, conversationsResult, knowledgeResult] =
+      const me = await api.getCurrentUser();
+      setUser(me);
+      api.setCurrentUserId(me.id);
+      setProfileDraft({
+        nickname: me.nickname,
+        phone: me.phone,
+        avatar: me.avatar,
+      });
+
+      const [providersResult, demandsResult, ordersResult, conversationsResult, knowledgeResult] =
         await Promise.allSettled([
-          api.getCurrentUser(),
           api.listProviders(),
           api.listDemands(),
           api.listOrders(),
           api.listConversations(),
           api.getKnowledge(),
         ]);
-
-      if (meResult.status !== 'fulfilled') {
-        throw meResult.reason;
-      }
-
-      setUser(meResult.value);
-      api.setCurrentUserId(meResult.value.id);
-      setProfileDraft({
-        nickname: meResult.value.nickname,
-        phone: meResult.value.phone,
-        avatar: meResult.value.avatar,
-      });
 
       if (providersResult.status === 'fulfilled') {
         setProviderCards(await buildProviderCards(providersResult.value.items));
@@ -310,7 +317,7 @@ export function useMimiAppController() {
       if (demandsResult.status === 'fulfilled') {
         const items = demandsResult.value.items.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
         setDemands(items);
-        const mineDemand = items.find((item) => item.userId === meResult.value.id) || null;
+        const mineDemand = items.find((item) => item.userId === me.id) || null;
         setLatestDemand(mineDemand);
         if (mineDemand) {
           await loadOffersForDemand(mineDemand.id);
@@ -363,10 +370,21 @@ export function useMimiAppController() {
         }
       }
       try {
-        const favorites = await api.listPolicyFavorites(meResult.value.id);
+        const favorites = await api.listPolicyFavorites(me.id);
         setPolicyFavorites(favorites.items);
       } catch {
         setPolicyFavorites([]);
+      }
+      try {
+        const [petResult, addressResult] = await Promise.all([
+          api.listPets(me.id),
+          api.listAddresses(me.id),
+        ]);
+        setPets(petResult.items);
+        setAddresses(addressResult.items);
+      } catch {
+        setPets([]);
+        setAddresses([]);
       }
     } catch (error) {
       applyError(error, '初始化数据失败');
@@ -762,17 +780,18 @@ export function useMimiAppController() {
     }
   }, [applyError, reviewDraft, selectedOrder, showToast, syncDashboard]);
 
-  const submitFeedback = useCallback(async () => {
-    if (!selectedOrder) return;
-    setBusyKey(`feedback-${selectedOrder.id}`);
+  const submitFeedback = useCallback(async (orderId?: string) => {
+    const targetOrderId = orderId || selectedOrder?.id;
+    if (!targetOrderId) return;
+    setBusyKey(`feedback-${targetOrderId}`);
     try {
-      await api.createFeedback(selectedOrder.id, {
+      await api.createFeedback(targetOrderId, {
         note: feedbackDraft,
         arrivedAt: new Date().toISOString(),
         leftAt: new Date(Date.now() + 45 * 60 * 1000).toISOString(),
         photoUrls: [assets.postCarrier],
       });
-      await loadOrderDetail(selectedOrder.id);
+      await loadOrderDetail(targetOrderId);
       await syncDashboard();
       showToast('服务反馈已记录');
     } catch (error) {
@@ -780,7 +799,7 @@ export function useMimiAppController() {
     } finally {
       setBusyKey('');
     }
-  }, [applyError, feedbackDraft, loadOrderDetail, selectedOrder, showToast, syncDashboard]);
+  }, [applyError, feedbackDraft, loadOrderDetail, selectedOrder?.id, showToast, syncDashboard]);
 
   const reportOrderLocation = useCallback(async () => {
     if (!selectedOrder?.pickup) return;
@@ -885,6 +904,47 @@ export function useMimiAppController() {
       setBusyKey('');
     }
   }, [applyError, demandForm.district, showToast, syncDashboard]);
+
+  const createDemoPet = useCallback(async () => {
+    setBusyKey('create-pet');
+    try {
+      const pet = await api.createPet({
+        name: '急急',
+        breed: demandForm.petSummary || '猫咪',
+        weight: `${Math.max(1, demandForm.petCount)} 只`,
+        vaccine: '疫苗信息待补充',
+        certificate: '检疫证明待办理',
+        avatar: '🐱',
+      });
+      setPets((prev) => [pet, ...prev.filter((item) => item.id !== pet.id)]);
+      showToast('宠物档案已保存');
+    } catch (error) {
+      applyError(error, '宠物档案保存失败');
+    } finally {
+      setBusyKey('');
+    }
+  }, [applyError, demandForm.petCount, demandForm.petSummary, showToast]);
+
+  const createDemoAddress = useCallback(async () => {
+    setBusyKey('create-address');
+    try {
+      const address = await api.createAddress({
+        label: '常用地址',
+        address: demandForm.pickupAddress || '杭州市西湖区宠物友好社区',
+        district: demandForm.district,
+        contactName: profileDraft.nickname || user?.nickname,
+        contactPhone: profileDraft.phone || user?.phone,
+        coordSystem: 'gcj02',
+        isDefault: true,
+      });
+      setAddresses((prev) => [address, ...prev.filter((item) => item.id !== address.id)]);
+      showToast('常用地址已保存');
+    } catch (error) {
+      applyError(error, '常用地址保存失败');
+    } finally {
+      setBusyKey('');
+    }
+  }, [applyError, demandForm.district, demandForm.pickupAddress, profileDraft.nickname, profileDraft.phone, showToast, user?.nickname, user?.phone]);
 
   const loadPolicyDetail = useCallback(
     async (policyId: string) => {
@@ -1003,6 +1063,10 @@ export function useMimiAppController() {
       setProfileDraft,
       saveProfile,
       applyAsProvider,
+      pets,
+      addresses,
+      createDemoPet,
+      createDemoAddress,
       handleLogout,
     },
     home: {

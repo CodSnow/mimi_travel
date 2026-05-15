@@ -72,6 +72,35 @@ export interface PolicyFavoriteRecord {
   createdAt: string;
 }
 
+export interface PetProfileRecord {
+  id: string;
+  userId: string;
+  name: string;
+  breed?: string | null;
+  weight?: string | null;
+  vaccine?: string | null;
+  certificate?: string | null;
+  avatar?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AddressRecord {
+  id: string;
+  userId: string;
+  label: string;
+  contactName?: string | null;
+  contactPhone?: string | null;
+  district?: string | null;
+  address: string;
+  lat?: number | null;
+  lng?: number | null;
+  coordSystem: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ComplaintRecord {
   id: string;
   orderId?: string;
@@ -266,6 +295,7 @@ export const api = {
     return request<ReviewSummary>(`/api/providers/${userId}/review-summary`);
   },
   applyProvider(payload: {
+    userId?: string;
     services: string[];
     intro: string;
     serviceRadiusKm: number;
@@ -275,9 +305,44 @@ export const api = {
     supportsMultiDayCare?: boolean;
     vehicle?: Partial<VehicleProfile>;
   }) {
-    return request<{ provider: ProviderProfile; vehicle?: VehicleProfile }>('/api/providers/apply', {
+    return request<{ application?: { id: string; status: string; services: string[] }; provider?: ProviderProfile; vehicle?: VehicleProfile }>('/api/providers/apply', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, userId: payload.userId || requireCurrentUserId() }),
+    });
+  },
+  listPets(userId = requireCurrentUserId()) {
+    return request<{ items: PetProfileRecord[] }>(`/api/pets${toQuery({ userId })}`);
+  },
+  createPet(payload: {
+    name: string;
+    breed?: string;
+    weight?: string;
+    vaccine?: string;
+    certificate?: string;
+    avatar?: string;
+  }) {
+    return request<PetProfileRecord>('/api/pets', {
+      method: 'POST',
+      body: JSON.stringify({ ...payload, userId: requireCurrentUserId() }),
+    });
+  },
+  listAddresses(userId = requireCurrentUserId()) {
+    return request<{ items: AddressRecord[] }>(`/api/addresses${toQuery({ userId })}`);
+  },
+  createAddress(payload: {
+    label: string;
+    address: string;
+    contactName?: string;
+    contactPhone?: string;
+    district?: string;
+    lat?: number;
+    lng?: number;
+    coordSystem?: string;
+    isDefault?: boolean;
+  }) {
+    return request<AddressRecord>('/api/addresses', {
+      method: 'POST',
+      body: JSON.stringify({ ...payload, userId: requireCurrentUserId() }),
     });
   },
   createDemand(payload: Record<string, unknown>) {
@@ -403,7 +468,7 @@ export const api = {
   }) {
     return request<ReviewRecord>(`/api/orders/${orderId}/reviews`, {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, operatorUserId: requireCurrentUserId() }),
     });
   },
   createFeedback(orderId: string, payload: {
@@ -416,7 +481,7 @@ export const api = {
   }) {
     return request<ServiceFeedbackRecord>(`/api/orders/${orderId}/feedback`, {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, operatorUserId: requireCurrentUserId() }),
     });
   },
   listFeedback(orderId: string) {
