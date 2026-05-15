@@ -33,8 +33,10 @@ export interface PaymentCloseRequest {
 }
 
 export interface PaymentNotifyRequest {
+  provider?: 'local' | 'alipay' | 'wechat_pay';
   outTradeNo: string;
   providerTradeNo?: string;
+  headers?: Record<string, string>;
   rawPayload?: Record<string, unknown>;
 }
 
@@ -42,6 +44,11 @@ export interface RefundCreateRequest {
   operatorUserId: string;
   reason?: string;
   refundAmountFen?: number;
+}
+
+export interface RefundQueryRequest {
+  operatorUserId: string;
+  providerRefundNo: string;
 }
 
 export type RefundResponse = RefundRecord;

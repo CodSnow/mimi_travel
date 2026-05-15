@@ -20,6 +20,8 @@ import {
   type PolicyFavoriteRecord,
   type DriverMatchCandidate,
   type KnowledgePreview,
+  type NavigationLinkResponse,
+  type NavigationSdkConfig,
   type PaymentCreateResponse,
   type PetProfileRecord,
   type ProviderBundle,
@@ -84,6 +86,10 @@ export function useMimiAppController() {
   const [selectedOrderEvents, setSelectedOrderEvents] = useState<Array<{ id: string; eventType: string; createdAt: string }>>([]);
   const [orderFeedbacks, setOrderFeedbacks] = useState<ServiceFeedbackRecord[]>([]);
   const [navigationUrl, setNavigationUrl] = useState('');
+  const [navigationLinks, setNavigationLinks] = useState<NavigationLinkResponse | null>(null);
+  const [navigationSdkConfig, setNavigationSdkConfig] = useState<NavigationSdkConfig | null>(null);
+  const [navigationStatus, setNavigationStatus] = useState('地图配置加载中');
+  const [navigationIssue, setNavigationIssue] = useState('');
   const [paymentCache, setPaymentCache] = useState<Record<string, PaymentCreateResponse['payment']>>({});
   const [reviewDraft, setReviewDraft] = useState<ReviewDraft>({ score: 5, content: '沟通及时，服务细致。' });
   const [feedbackDraft, setFeedbackDraft] = useState('到店后会按节点拍照反馈，结束前再做一次环境检查。');
@@ -262,17 +268,56 @@ export function useMimiAppController() {
     setOrderFeedbacks(feedbackResponse.items);
     if (detail.order.pickup && detail.order.destination) {
       try {
-        const navigation = await api.buildNavigationLink({
-          from: detail.order.pickup,
-          to: detail.order.destination,
-          mode: 'driving',
-        });
+        const [navigation, sdkConfig] = await Promise.all([
+          api.buildNavigationLink({
+            from: detail.order.pickup,
+            to: detail.order.destination,
+            mode: 'driving',
+          }),
+          api.getNavigationSdkConfig(),
+        ]);
+        setNavigationLinks(navigation);
+        setNavigationSdkConfig(sdkConfig);
+        setNavigationStatus(sdkConfig.enabled ? '地图 SDK 已就绪' : '未配置地图 SDK，使用 Web 导航');
+        setNavigationIssue('');
         setNavigationUrl(navigation.webFallback || navigation.amap || navigation.baidu);
       } catch {
-        setNavigationUrl('');
+        setNavigationLinks(null);
+        setNavigationSdkConfig(null);
+        setNavigationStatus('地图配置加载失败');
+        setNavigationIssue('无法获取地图配置，已保留订单详情并等待重试。');
+        try {
+          const navigation = await api.buildNavigationLink({
+            from: detail.order.pickup,
+            to: detail.order.destination,
+            mode: 'driving',
+          });
+          setNavigationLinks(navigation);
+          setNavigationUrl(navigation.webFallback || navigation.amap || navigation.baidu);
+        } catch {
+          setNavigationUrl('');
+        }
       }
     } else {
+      setNavigationLinks(null);
       setNavigationUrl('');
+      setNavigationStatus('订单缺少起终点');
+      setNavigationIssue('当前订单没有完整的出发地和目的地，无法生成路线。');
+    }
+  }, []);
+
+  const refreshNavigationSdkConfig = useCallback(async () => {
+    try {
+      const sdkConfig = await api.getNavigationSdkConfig();
+      setNavigationSdkConfig(sdkConfig);
+      setNavigationStatus(sdkConfig.enabled ? '地图 SDK 已就绪' : '未配置地图 SDK，使用 Web 导航');
+      setNavigationIssue('');
+      return sdkConfig;
+    } catch (error) {
+      setNavigationSdkConfig(null);
+      setNavigationStatus('地图配置加载失败');
+      setNavigationIssue('地图 SDK 配置暂时不可用，请使用 Web 导航。');
+      throw error;
     }
   }, []);
 
@@ -802,17 +847,33 @@ export function useMimiAppController() {
   }, [applyError, feedbackDraft, loadOrderDetail, selectedOrder?.id, showToast, syncDashboard]);
 
   const reportOrderLocation = useCallback(async () => {
-    if (!selectedOrder?.pickup) return;
+    if (!selectedOrder?.pickup) {
+      setNavigationIssue('当前订单缺少起点，无法上报位置。');
+      return;
+    }
     setBusyKey(`location-${selectedOrder.id}`);
     try {
-      const point = selectedOrder.destination || selectedOrder.pickup;
+      if (!navigator.geolocation) {
+        setNavigationIssue('当前浏览器不支持定位，请使用 Web 导航或手动联系服务者。');
+        showToast('浏览器不支持定位');
+        return;
+      }
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        // 浏览器定位需要用户授权；失败时只影响当前位置上报，不阻断导航链接。
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          maximumAge: 30_000,
+          timeout: 8_000,
+        });
+      });
       await api.reportLocation({
         orderId: selectedOrder.id,
-        lat: point.lat,
-        lng: point.lng,
-        address: point.address,
-        coordSystem: point.coordSystem || 'gcj02',
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        address: '浏览器定位',
+        coordSystem: 'wgs84',
       });
+      setNavigationIssue('');
       await syncDashboard();
       const conversationId = selectedConversationId || conversations[0]?.id;
       if (conversationId) {
@@ -820,7 +881,12 @@ export function useMimiAppController() {
       }
       showToast('位置已同步到会话');
     } catch (error) {
-      applyError(error, '位置上报失败');
+      if (typeof error === 'object' && error !== null && 'code' in error) {
+        setNavigationIssue('定位授权失败或超时，请检查浏览器定位权限。');
+        showToast('定位授权失败');
+      } else {
+        applyError(error, '位置上报失败');
+      }
     } finally {
       setBusyKey('');
     }
@@ -1100,6 +1166,10 @@ export function useMimiAppController() {
       selectedOrderEvents,
       orderFeedbacks,
       navigationUrl,
+      navigationLinks,
+      navigationSdkConfig,
+      navigationStatus,
+      navigationIssue,
       paymentCache,
       reviewDraft,
       setReviewDraft,
@@ -1111,6 +1181,7 @@ export function useMimiAppController() {
       submitReview,
       submitFeedback,
       reportOrderLocation,
+      refreshNavigationSdkConfig,
     },
     messages: {
       conversations,

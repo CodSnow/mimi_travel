@@ -7,7 +7,12 @@ import { DeepSeekProvider, LocalRagProvider } from '../../services/policy-provid
 export function createPolicyRouter(engine: MimiEngine): Router {
   const router = Router();
   const localRagProvider = new LocalRagProvider();
-  const deepSeekProvider = new DeepSeekProvider(env.deepSeekApiKey);
+  const deepSeekProvider = new DeepSeekProvider({
+    apiKey: env.deepSeekApiKey,
+    baseUrl: env.deepSeekBaseUrl,
+    model: env.deepSeekModel,
+    timeoutMs: env.deepSeekTimeoutMs,
+  });
 
   router.get('/api/knowledge', async (req, res) => {
     try {
@@ -52,10 +57,12 @@ export function createPolicyRouter(engine: MimiEngine): Router {
 
       const knowledge = await engine.readKnowledge();
       const contexts = engine.retrieveDocuments(question, knowledge, 4);
-      if (req.body?.provider === 'deepseek' && !deepSeekProvider.isEnabled()) {
-        return res.json(deepSeekProvider.answerUnavailable(question, knowledge));
+      const localAnswer = localRagProvider.answer(question, contexts);
+
+      if (req.body?.provider === 'deepseek') {
+        return res.json(await deepSeekProvider.answer(question, contexts, localAnswer));
       }
-      return res.json(localRagProvider.answer(question, contexts));
+      return res.json(localAnswer);
     } catch (error: any) {
       return res.status(500).json({ error: error.message });
     }

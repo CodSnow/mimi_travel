@@ -1,23 +1,23 @@
 import React from 'react'
 import { View, Text, Button, Image, Input, ScrollView } from '@tarojs/components'
 
-export const Section = (props: any) => <View {...props} />
-export const Article = (props: any) => <View {...props} />
-export const Div = (props: any) => <View {...props} />
-export const Span = (props: any) => <Text {...props} />
-export const H1 = (props: any) => <Text style={{ fontSize: '24px', fontWeight: 'bold', display: 'block' }} {...props} />
-export const H2 = (props: any) => <Text style={{ fontSize: '20px', fontWeight: 'bold', display: 'block' }} {...props} />
-export const H3 = (props: any) => <Text style={{ fontSize: '18px', fontWeight: 'bold', display: 'block' }} {...props} />
-export const P = (props: any) => <View style={{ marginBottom: '10px' }} {...props} />
-export const Img = (props: any) => <Image mode="aspectFill" {...props} />
-export const Main = (props: any) => <View {...props} />
-export const Nav = (props: any) => <View {...props} />
-export const Form = (props: any) => <View {...props} />
-export const Label = (props: any) => <View {...props} />
-export const Strong = (props: any) => <Text style={{ fontWeight: 'bold' }} {...props} />
-export const Small = (props: any) => <Text style={{ fontSize: '12px' }} {...props} />
-export const Em = (props: any) => <Text style={{ fontStyle: 'italic' }} {...props} />
-export const I = (props: any) => <Text {...props} />
+export const Section = (props) => <View {...props} />
+export const Article = (props) => <View {...props} />
+export const Div = (props) => <View {...props} />
+export const Span = (props) => <Text {...props} />
+export const H1 = (props) => <Text style={{ fontSize: '24px', fontWeight: 'bold', display: 'block' }} {...props} />
+export const H2 = (props) => <Text style={{ fontSize: '20px', fontWeight: 'bold', display: 'block' }} {...props} />
+export const H3 = (props) => <Text style={{ fontSize: '18px', fontWeight: 'bold', display: 'block' }} {...props} />
+export const P = (props) => <View style={{ marginBottom: '10px' }} {...props} />
+export const Img = (props) => <Image mode="aspectFill" {...props} />
+export const Main = (props) => <View {...props} />
+export const Nav = (props) => <View {...props} />
+export const Form = (props) => <View {...props} />
+export const Label = (props) => <View {...props} />
+export const Strong = (props) => <Text style={{ fontWeight: 'bold' }} {...props} />
+export const Small = (props) => <Text style={{ fontSize: '12px' }} {...props} />
+export const Em = (props) => <Text style={{ fontStyle: 'italic' }} {...props} />
+export const I = (props) => <Text {...props} />
 
 // 覆盖默认标签
 export const HtmlCompat = {
@@ -38,11 +38,11 @@ export const HtmlCompat = {
   small: Small,
   em: Em,
   i: I,
-  button: (props: any) => {
+  button: (props) => {
     const { onClick, children, className, style } = props
     return <View onClick={onClick} className={className} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', ...style }}>{children}</View>
   },
-  input: (props: any) => {
+  input: (props) => {
     const { onChange, value, ...rest } = props
     return <Input onInput={(e) => onChange?.({ target: { value: e.detail.value } })} value={value} {...rest} />
   }

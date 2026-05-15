@@ -180,7 +180,7 @@ export function OrdersPage({ controller }: { controller: MimiAppController }) {
               </button>
               {orders.navigationUrl ? (
                 <a className="link-btn" href={orders.navigationUrl} rel="noreferrer" target="_blank">
-                  打开导航
+                  {orders.navigationSdkConfig?.enabled ? '打开 Web 备用' : '打开导航'}
                 </a>
               ) : null}
               <button className="ghost-btn" onClick={() => ui.navigateToScreen('dispute', { orderId: selectedOrder.id })} type="button">

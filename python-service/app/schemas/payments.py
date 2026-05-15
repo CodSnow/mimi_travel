@@ -9,6 +9,7 @@ class PaymentCreateRequest(BaseModel):
     order_id: UUID
     operator_user_id: UUID
     channel: str = Field(min_length=1, max_length=32)
+    provider: str | None = Field(default=None, min_length=1, max_length=32)
     scene: str = Field(min_length=1, max_length=32)
     amount_fen: int | None = Field(default=None, gt=0)
     idempotency_key: str | None = Field(default=None, max_length=128)
@@ -22,8 +23,10 @@ class PaymentQueryRequest(BaseModel):
 
 
 class PaymentNotifyRequest(BaseModel):
+    provider: str = Field(default="local", min_length=1, max_length=32)
     out_trade_no: str
     provider_trade_no: str | None = None
+    headers: dict[str, str] = Field(default_factory=dict)
     raw_payload: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -35,6 +38,11 @@ class RefundCreateRequest(BaseModel):
     operator_user_id: UUID
     reason: str | None = None
     refund_amount_fen: int | None = Field(default=None, gt=0)
+
+
+class RefundQueryRequest(BaseModel):
+    operator_user_id: UUID
+    provider_refund_no: str = Field(min_length=1, max_length=128)
 
 
 class PaymentResponse(BaseModel):

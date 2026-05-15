@@ -19,6 +19,228 @@ page {
   box-sizing: border-box;
 }
 
+.mp-page {
+  min-height: 100vh;
+  padding: 28px 22px 34px;
+  background: #f5f6f8;
+  color: #18202f;
+}
+
+.login-shell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-card,
+.section {
+  width: 100%;
+  border: 1px solid #e5e9f0;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 22px;
+}
+
+.topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.eyebrow,
+.subtitle,
+.section-desc,
+.status-message,
+.status-time,
+.status-data,
+.id-panel text {
+  display: block;
+  color: #667085;
+  font-size: 24px;
+  line-height: 1.5;
+}
+
+.eyebrow {
+  color: #0f766e;
+  font-weight: 800;
+}
+
+.title {
+  display: block;
+  margin-top: 6px;
+  color: #101828;
+  font-size: 40px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.nav-scroll {
+  width: 100%;
+  white-space: nowrap;
+  margin-bottom: 18px;
+}
+
+.nav-row {
+  display: flex;
+  gap: 12px;
+}
+
+.nav-pill,
+.primary-btn,
+.secondary-btn,
+.ghost-btn {
+  min-height: 72px;
+  margin: 0;
+  border-radius: 8px;
+  font-size: 26px;
+  line-height: 72px;
+}
+
+.nav-pill {
+  display: inline-flex;
+  min-width: 112px;
+  padding: 0 20px;
+  border: 1px solid #d0d5dd;
+  background: #ffffff;
+  color: #344054;
+}
+
+.nav-pill.active {
+  border-color: #0f766e;
+  background: #dff7f3;
+  color: #0f766e;
+  font-weight: 800;
+}
+
+.content-scroll {
+  height: calc(100vh - 190px);
+}
+
+.section-header {
+  margin-bottom: 18px;
+}
+
+.section-title {
+  display: block;
+  color: #101828;
+  font-size: 34px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.field {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+  color: #344054;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.field input {
+  height: 76px;
+  padding: 0 18px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 28px;
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0;
+}
+
+.primary-btn {
+  background: #0f766e;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.secondary-btn {
+  border: 1px solid #d0d5dd;
+  background: #ffffff;
+  color: #18202f;
+}
+
+.ghost-btn {
+  min-width: 120px;
+  border: 1px solid #d0d5dd;
+  background: #ffffff;
+  color: #475467;
+}
+
+.status-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.status-card {
+  border: 1px solid #e5e9f0;
+  border-left-width: 8px;
+  border-radius: 8px;
+  padding: 16px;
+  background: #ffffff;
+}
+
+.status-card.ok {
+  border-left-color: #16a34a;
+}
+
+.status-card.fail {
+  border-left-color: #d0d5dd;
+}
+
+.status-card.loading {
+  border-left-color: #f59e0b;
+}
+
+.status-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.status-title {
+  color: #101828;
+  font-size: 28px;
+  font-weight: 900;
+}
+
+.status-badge {
+  min-width: 92px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #3538cd;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 42px;
+  text-align: center;
+}
+
+.status-data {
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #344054;
+  word-break: break-all;
+}
+
+.id-panel {
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
 view, text, scroll-view, input, button {
   box-sizing: border-box;
 }
@@ -1603,7 +1825,7 @@ button {
 
 .xhs-meta {
   display: flex;
-  align-items: end;
+  align-items: flex-end;
   justify-content: space-between;
   padding: 0 8px 8px;
   background: #fff;
@@ -2503,7 +2725,7 @@ button {
 
 .profile-section-title {
   display: flex;
-  align-items: end;
+  align-items: flex-end;
   justify-content: space-between;
   margin-bottom: 14px;
 }
@@ -2697,7 +2919,7 @@ button {
 
 .idle-section-head {
   display: flex;
-  align-items: end;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 12px;
 }
@@ -2799,7 +3021,7 @@ button {
   inset: 0;
   z-index: 5;
   display: grid;
-  align-items: end;
+  align-items: flex-end;
   background: rgba(13, 18, 31, 0.18);
 }
 

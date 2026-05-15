@@ -1,9 +1,8 @@
-import { PropsWithChildren } from 'react'
 import { useLaunch } from '@tarojs/taro'
 // @ts-ignore
 import './app.scss'
 
-function App({ children }: PropsWithChildren<any>) {
+function App({ children }) {
   useLaunch(() => {
     console.log('App launched.')
   })

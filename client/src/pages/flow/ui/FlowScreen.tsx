@@ -1,4 +1,5 @@
 import React from 'react';
+import type { LocationPoint, ServiceOrder } from '@mimi/shared';
 import { orderStatusMeta } from '../../../features/mimi-dashboard/config/constants';
 import { currency, formatDateTime, serviceLabel } from '../../../features/mimi-dashboard/lib/helpers';
 import type { MimiAppController } from '../../../features/mimi-dashboard/model/useMimiAppController';
@@ -152,16 +153,7 @@ export function FlowScreen({ controller }: { controller: MimiAppController }) {
   if (ui.screen === 'navigation') {
     return (
       <FlowShell controller={controller} title="导航">
-        <section className="section-card">
-          <div className="section-head">
-            <div>
-              <h3>{order?.title || '订单导航'}</h3>
-              <p>{order?.pickup?.address || '--'} → {order?.destination?.address || '--'}</p>
-            </div>
-          </div>
-          {orders.navigationUrl ? <a className="primary-btn" href={orders.navigationUrl} rel="noreferrer" target="_blank">打开 Web 导航</a> : <p className="muted-text">当前订单缺少完整起终点。</p>}
-          <button className="ghost-btn compact-top" onClick={() => void orders.reportOrderLocation()} type="button">上报当前位置</button>
-        </section>
+        <NavigationMapPanel controller={controller} order={order} />
       </FlowShell>
     );
   }
@@ -214,6 +206,201 @@ export function FlowScreen({ controller }: { controller: MimiAppController }) {
   }
 
   return <AuxiliaryScreen controller={controller} />;
+}
+
+type MapRenderStatus = 'idle' | 'loading' | 'ready' | 'fallback' | 'failed';
+
+interface AMapSdk {
+  Map: new (container: HTMLElement, options: { zoom: number; center: [number, number] }) => unknown;
+  Driving: new (options: { map: unknown }) => { search: (from: [number, number], to: [number, number], callback: (status: string) => void) => void };
+}
+
+interface BaiduMapSdk {
+  Map: new (container: HTMLElement) => { centerAndZoom: (point: unknown, zoom: number) => void; enableScrollWheelZoom?: (enabled: boolean) => void };
+  Point: new (lng: number, lat: number) => unknown;
+  DrivingRoute: new (map: unknown, options: { renderOptions: { map: unknown; autoViewport: boolean }; onSearchComplete: () => void }) => { search: (from: unknown, to: unknown) => void };
+}
+
+const scriptLoaders = new Map<string, Promise<void>>();
+
+/**
+ * 加载第三方地图 SDK 脚本。
+ * 参数：script id 和完整 URL；同一个 URL 复用 Promise，避免 React 重渲染重复注入脚本。
+ * 返回值：脚本加载完成 Promise，失败时交给页面显示 Web fallback。
+ */
+function loadMapScript(id: string, url: string) {
+  const cached = scriptLoaders.get(id);
+  if (cached) return cached;
+  const existing = document.getElementById(id) as HTMLScriptElement | null;
+  if (existing?.dataset.loaded === 'true') return Promise.resolve();
+
+  const loader = new Promise<void>((resolve, reject) => {
+    const script = existing || document.createElement('script');
+    script.id = id;
+    script.async = true;
+    script.onload = () => {
+      script.dataset.loaded = 'true';
+      resolve();
+    };
+    script.onerror = () => reject(new Error(`${id} load failed`));
+    if (!existing) {
+      script.src = url;
+      document.head.appendChild(script);
+    }
+  });
+  scriptLoaders.set(id, loader);
+  return loader;
+}
+
+/**
+ * 加载百度地图 SDK，使用官方 callback 形态判断初始化完成。
+ * 参数：Web SDK key 和 sdkUrl。
+ * 返回值：callback 被触发后 resolve，网络失败 reject。
+ */
+function loadBaiduMapScript(key: string, sdkUrl: string) {
+  const callbackName = '__mimiBaiduMapReady';
+  const id = 'mimi-baidu-map-sdk';
+  const url = `${sdkUrl}?v=3.0&type=webgl&ak=${encodeURIComponent(key)}&callback=${callbackName}`;
+  if ((window as unknown as { BMapGL?: BaiduMapSdk }).BMapGL) return Promise.resolve();
+  const cached = scriptLoaders.get(id);
+  if (cached) return cached;
+  const loader = new Promise<void>((resolve, reject) => {
+    (window as unknown as Record<string, () => void>)[callbackName] = () => resolve();
+    const script = document.createElement('script');
+    script.id = id;
+    script.async = true;
+    script.src = url;
+    script.onerror = () => reject(new Error('baidu map load failed'));
+    document.head.appendChild(script);
+  });
+  scriptLoaders.set(id, loader);
+  return loader;
+}
+
+function pointLabel(point?: LocationPoint) {
+  return point?.address || '--';
+}
+
+function NavigationMapPanel({ controller, order }: { controller: MimiAppController; order?: ServiceOrder | null }) {
+  const { orders, ui } = controller;
+  const mapRef = React.useRef<HTMLDivElement | null>(null);
+  const [mapStatus, setMapStatus] = React.useState<MapRenderStatus>('idle');
+  const [mapMessage, setMapMessage] = React.useState('');
+  const sdkConfig = orders.navigationSdkConfig;
+  const links = orders.navigationLinks;
+  const canRoute = Boolean(order?.pickup && order.destination);
+  const provider = sdkConfig?.providers.amap.enabled ? 'amap' : sdkConfig?.providers.baidu.enabled ? 'baidu' : '';
+
+  React.useEffect(() => {
+    let active = true;
+    const container = mapRef.current;
+    const pickup = order?.pickup;
+    const destination = order?.destination;
+    if (!container || !pickup || !destination) {
+      setMapStatus('fallback');
+      setMapMessage('当前订单缺少完整起终点。');
+      return;
+    }
+    if (!sdkConfig?.enabled || !provider) {
+      setMapStatus('fallback');
+      setMapMessage('未配置地图 SDK，使用 Web 导航。');
+      return;
+    }
+
+    const renderRoute = async () => {
+      try {
+        setMapStatus('loading');
+        setMapMessage('正在加载地图路线');
+        container.innerHTML = '';
+        if (provider === 'amap') {
+          const amap = sdkConfig.providers.amap;
+          await loadMapScript('mimi-amap-sdk', `${amap.sdkUrl}?v=2.0&key=${encodeURIComponent(amap.key)}&plugin=AMap.Driving`);
+          const AMap = (window as unknown as { AMap?: AMapSdk }).AMap;
+          if (!AMap) throw new Error('AMap SDK missing');
+          const map = new AMap.Map(container, { zoom: 12, center: [pickup.lng, pickup.lat] });
+          const driving = new AMap.Driving({ map });
+          driving.search([pickup.lng, pickup.lat], [destination.lng, destination.lat], (status) => {
+            if (!active) return;
+            setMapStatus(status === 'complete' ? 'ready' : 'failed');
+            setMapMessage(status === 'complete' ? '已生成高德地图路线' : '高德路线生成失败，请使用 Web 导航。');
+          });
+          return;
+        }
+
+        const baidu = sdkConfig.providers.baidu;
+        await loadBaiduMapScript(baidu.key, baidu.sdkUrl);
+        const BMapGL = (window as unknown as { BMapGL?: BaiduMapSdk }).BMapGL;
+        if (!BMapGL) throw new Error('Baidu SDK missing');
+        const map = new BMapGL.Map(container);
+        const from = new BMapGL.Point(pickup.lng, pickup.lat);
+        const to = new BMapGL.Point(destination.lng, destination.lat);
+        map.centerAndZoom(from, 13);
+        map.enableScrollWheelZoom?.(true);
+        const driving = new BMapGL.DrivingRoute(map, {
+          renderOptions: { map, autoViewport: true },
+          onSearchComplete: () => {
+            if (!active) return;
+            setMapStatus('ready');
+            setMapMessage('已生成百度地图路线');
+          },
+        });
+        driving.search(from, to);
+      } catch {
+        if (!active) return;
+        setMapStatus('failed');
+        setMapMessage('地图 SDK 加载失败，请使用 Web 导航。');
+      }
+    };
+
+    void renderRoute();
+    return () => {
+      active = false;
+    };
+  }, [order?.destination, order?.pickup, provider, sdkConfig]);
+
+  return (
+    <section className="section-card navigation-panel">
+      <div className="section-head">
+        <div>
+          <h3>{order?.title || '订单导航'}</h3>
+          <p>{pointLabel(order?.pickup)} → {pointLabel(order?.destination)}</p>
+        </div>
+        <span className={['mini-status', mapStatus === 'ready' ? 'green' : mapStatus === 'failed' ? 'danger' : ''].join(' ')}>
+          {orders.navigationStatus}
+        </span>
+      </div>
+
+      <div className="map-route-card">
+        <div className="map-route-card__meta">
+          <span>起</span>
+          <p>{pointLabel(order?.pickup)}</p>
+          <span>终</span>
+          <p>{pointLabel(order?.destination)}</p>
+        </div>
+        <div className="map-canvas" ref={mapRef}>
+          {mapStatus !== 'ready' ? <span>{mapMessage || '等待地图配置'}</span> : null}
+        </div>
+      </div>
+
+      {orders.navigationIssue ? <p className="form-error">{orders.navigationIssue}</p> : null}
+      {mapMessage && mapStatus !== 'ready' ? <p className="muted-text">{mapMessage}</p> : null}
+
+      <div className="order-actions compact-top">
+        {links?.amap ? <a className="ghost-btn" href={links.amap} rel="noreferrer" target="_blank">高德 App</a> : null}
+        {links?.baidu ? <a className="ghost-btn" href={links.baidu} rel="noreferrer" target="_blank">百度 App</a> : null}
+        {links?.webFallback || orders.navigationUrl ? (
+          <a className="primary-btn" href={links?.webFallback || orders.navigationUrl} rel="noreferrer" target="_blank">
+            打开 Web 导航
+          </a>
+        ) : null}
+        {!canRoute ? <p className="muted-text">当前订单缺少完整起终点。</p> : null}
+      </div>
+      <div className="order-actions compact-top">
+        <button className="ghost-btn" onClick={() => void orders.refreshNavigationSdkConfig()} type="button">重试地图配置</button>
+        <button className="ghost-btn" disabled={ui.busyKey === `location-${order?.id}`} onClick={() => void orders.reportOrderLocation()} type="button">上报当前位置</button>
+      </div>
+    </section>
+  );
 }
 
 function FlowShell({ controller, title, children }: { controller: MimiAppController; title: string; children: React.ReactNode }) {

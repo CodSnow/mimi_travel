@@ -1,6 +1,7 @@
 import pytest
 
 from app.services.payments.local_provider import LocalPaymentProvider
+from app.services.payments.providers import PaymentProviderError, RealPaymentProvider, RealProviderConfig
 
 
 def test_create_local_payment_payload():
@@ -44,6 +45,40 @@ def test_query_and_close_local_payment_payload():
     assert pending["status"] == "pending"
     assert paid["status"] == "paid"
     assert closed["status"] == "closed"
+
+
+def test_local_refund_query_and_notify_payload():
+    provider = LocalPaymentProvider(channel="wechat_pay")
+
+    refund = provider.query_refund(
+        out_trade_no="MIMI202605130004",
+        provider_refund_no="RF202605130004",
+    )
+    notify = provider.verify_notify(
+        headers={},
+        payload={"out_trade_no": "MIMI202605130004"},
+    )
+
+    assert refund["status"] == "success"
+    assert refund["provider"] == "local"
+    assert notify["verified"] is True
+    assert notify["payload"]["out_trade_no"] == "MIMI202605130004"
+
+
+def test_real_provider_not_configured_payloads_fail_clearly():
+    provider = RealPaymentProvider(
+        RealProviderConfig(
+            provider="alipay",
+            required_fields={"MIMI_ALIPAY_APP_ID": None},
+        )
+    )
+
+    with pytest.raises(PaymentProviderError, match="alipay payment provider is not configured"):
+        provider.create_payment(
+            out_trade_no="MIMI202605130005",
+            amount_fen=9900,
+            subject="咪咪出行订单",
+        )
 
 
 def test_rejects_unsupported_channel():

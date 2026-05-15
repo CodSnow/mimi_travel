@@ -1390,6 +1390,70 @@ body {
   box-shadow: none;
 }
 
+.navigation-panel {
+  gap: 16px;
+}
+
+.map-route-card {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.map-route-card__meta {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-content: start;
+  gap: 10px 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fffaf6;
+}
+
+.map-route-card__meta span {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.map-route-card__meta p {
+  min-width: 0;
+  margin: 0;
+  color: #555;
+  font-size: 13px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.map-canvas {
+  min-height: 280px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  overflow: hidden;
+  background: #f7f7f8;
+  display: grid;
+  place-items: center;
+  color: #777;
+  font-size: 13px;
+}
+
+.mini-status.green {
+  background: #e9f8f1;
+  color: #168352;
+}
+
+.mini-status.danger {
+  background: #fff0ed;
+  color: #c2412d;
+}
+
 .readonly-contact {
   padding-left: 4px;
   color: #999;
@@ -2220,6 +2284,14 @@ body {
   .orders-overview-grid,
   .order-tabs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .map-route-card {
+    grid-template-columns: 1fr;
+  }
+
+  .map-canvas {
+    min-height: 220px;
   }
 
   .order-actions {

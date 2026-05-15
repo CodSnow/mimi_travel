@@ -83,12 +83,28 @@ export function createPaymentsRouter(pythonClient: PythonClient): Router {
     }
   });
 
+  router.post('/api/payments/:id/refund/query', async (req, res) => {
+    try {
+      if (!req.body?.operatorUserId || !req.body?.providerRefundNo) {
+        return res.status(400).json({ error: 'operatorUserId and providerRefundNo are required' });
+      }
+      return res.json(
+        await pythonClient.queryRefund(req.params.id, {
+          operatorUserId: req.body.operatorUserId,
+          providerRefundNo: req.body.providerRefundNo,
+        }),
+      );
+    } catch (error) {
+      return handlePythonError(error, res);
+    }
+  });
+
   router.post('/api/payments/notify/alipay', async (req, res) => {
-    return handlePaymentNotify('alipay', req.body, pythonClient, res);
+    return handlePaymentNotify('alipay', req, pythonClient, res);
   });
 
   router.post('/api/payments/notify/wechat', async (req, res) => {
-    return handlePaymentNotify('wechat_pay', req.body, pythonClient, res);
+    return handlePaymentNotify('wechat_pay', req, pythonClient, res);
   });
 
   router.post('/api/payments/prepay-check', async (req, res) => {
@@ -111,11 +127,29 @@ export function createPaymentsRouter(pythonClient: PythonClient): Router {
   return router;
 }
 
-async function handlePaymentNotify(channel: 'alipay' | 'wechat_pay', body: any, pythonClient: PythonClient, res: Response) {
+async function handlePaymentNotify(
+  channel: 'alipay' | 'wechat_pay',
+  req: { body?: any; headers: Record<string, string | string[] | undefined> },
+  pythonClient: PythonClient,
+  res: Response,
+) {
+  const body = req.body || {};
   const outTradeNo = body?.outTradeNo || body?.out_trade_no;
   if (!outTradeNo) return res.status(400).json({ error: 'outTradeNo is required' });
 
   try {
+    const provider = resolveNotifyProvider(channel, body);
+    if (provider !== 'local') {
+      const paidPayment = await pythonClient.notifyPayment({
+        provider,
+        outTradeNo,
+        providerTradeNo: body?.providerTradeNo || body?.trade_no,
+        headers: normalizeHeaders(req.headers),
+        rawPayload: { ...body, channel },
+      });
+      return res.json({ ok: true, payment: paidPayment });
+    }
+
     const merchantId = firstString(body?.merchantId, body?.merchant_id, body?.mch_id);
     if (!merchantId || merchantId !== env.paymentMerchantId) {
       return res.status(400).json({ error: 'invalid merchant id' });
@@ -139,14 +173,30 @@ async function handlePaymentNotify(channel: 'alipay' | 'wechat_pay', body: any, 
     }
 
     const paidPayment = await pythonClient.notifyPayment({
+      provider,
       outTradeNo,
       providerTradeNo: body?.providerTradeNo || body?.trade_no,
+      headers: normalizeHeaders(req.headers),
       rawPayload: { ...body, channel },
     });
     return res.json({ ok: true, payment: paidPayment });
   } catch (error) {
     return handlePythonError(error, res);
   }
+}
+
+function resolveNotifyProvider(channel: 'alipay' | 'wechat_pay', body: any): 'local' | 'alipay' | 'wechat_pay' {
+  if (body?.provider === 'local') return 'local';
+  if (body?.provider === channel) return channel;
+  return firstString(body?.merchantId, body?.merchant_id, body?.mch_id) ? 'local' : channel;
+}
+
+function normalizeHeaders(headers: Record<string, string | string[] | undefined>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(headers)
+      .map(([key, value]) => [key, Array.isArray(value) ? value.join(',') : value])
+      .filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+  );
 }
 
 function firstString(...values: unknown[]): string | undefined {

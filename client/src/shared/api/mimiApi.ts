@@ -63,6 +63,27 @@ export interface AskPolicyResponse {
   contexts: KnowledgePreview[];
 }
 
+export interface NavigationLinkResponse {
+  amap: string;
+  baidu: string;
+  webFallback: string;
+}
+
+export interface NavigationSdkProviderConfig {
+  enabled: boolean;
+  key: string;
+  sdkUrl: string;
+}
+
+export interface NavigationSdkConfig {
+  enabled: boolean;
+  webFallbackEnabled: boolean;
+  providers: {
+    amap: NavigationSdkProviderConfig;
+    baidu: NavigationSdkProviderConfig;
+  };
+}
+
 export interface PolicyFavoriteRecord {
   id: string;
   userId: string;
@@ -437,6 +458,12 @@ export const api = {
       body: JSON.stringify({ reason, operatorUserId: requireCurrentUserId() }),
     });
   },
+  queryRefund(paymentId: string, providerRefundNo: string) {
+    return request<Record<string, unknown>>(`/api/payments/${paymentId}/refund/query`, {
+      method: 'POST',
+      body: JSON.stringify({ providerRefundNo, operatorUserId: requireCurrentUserId() }),
+    });
+  },
   listConversations(userId = requireCurrentUserId()) {
     return request<{ items: Conversation[] }>(`/api/messages/conversations${toQuery({ userId })}`);
   },
@@ -505,7 +532,7 @@ export const api = {
     to: LocationPoint;
     mode?: 'driving' | 'walking';
   }) {
-    return request<{ amap: string; baidu: string; webFallback: string }>('/api/navigation/link' + toQuery({
+    return request<NavigationLinkResponse>('/api/navigation/link' + toQuery({
       fromLat: payload.from.lat,
       fromLng: payload.from.lng,
       toLat: payload.to.lat,
@@ -513,6 +540,9 @@ export const api = {
       toName: payload.to.address,
       mode: payload.mode || 'driving',
     }));
+  },
+  getNavigationSdkConfig() {
+    return request<NavigationSdkConfig>('/api/navigation/sdk-config');
   },
   getKnowledge(district?: string) {
     return request<KnowledgeResponse>(`/api/knowledge${toQuery({ district })}`);

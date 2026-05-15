@@ -1,4 +1,5 @@
 from uuid import UUID
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -14,6 +15,7 @@ from app.schemas.payments import (
     PaymentResponse,
     RefundCreateRequest,
     RefundCreateResponse,
+    RefundQueryRequest,
     RefundResponse,
 )
 from app.services.payments.payment_service import PaymentService, PaymentServiceError
@@ -104,13 +106,36 @@ def refund_payment(
         _raise_http(error)
 
 
+@router.post("/{payment_id}/refund/query", response_model=dict[str, Any])
+def query_refund(
+    payment_id: UUID,
+    payload: RefundQueryRequest,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    try:
+        return _service(db).query_refund(payment_id, **payload.model_dump())
+    except PaymentServiceError as error:
+        _raise_http(error)
+
+
 @router.post("/notify", response_model=PaymentResponse)
 def notify_payment(payload: PaymentNotifyRequest, db: Session = Depends(get_db)) -> PaymentResponse:
     try:
-        payment = _service(db).notify_paid(
+        service = _service(db)
+        verified_notify = service.verify_notify(
+            payload.provider,
+            headers=payload.headers,
+            payload=payload.raw_payload,
+            channel=payload.raw_payload.get("channel"),
+        )
+        payment = service.notify_paid(
             payload.out_trade_no,
             provider_trade_no=payload.provider_trade_no,
-            raw_payload=payload.raw_payload,
+            raw_payload={
+                **payload.raw_payload,
+                "provider": payload.provider,
+                "verified_notify": verified_notify,
+            },
         )
         db.commit()
         return PaymentResponse.model_validate(payment)

@@ -3,11 +3,18 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from app.config.settings import settings
 from app.models.order import Order
 from app.models.payment import Payment
 from app.models.refund import Refund
 from app.repositories.payment_repo import PaymentRepository
 from app.services.payments.local_provider import LocalPaymentProvider
+from app.services.payments.providers import (
+    PaymentProvider,
+    PaymentProviderError,
+    RealPaymentProvider,
+    real_provider_config,
+)
 
 
 class PaymentServiceError(ValueError):
@@ -40,6 +47,7 @@ class PaymentService:
         operator_user_id: uuid.UUID,
         amount_fen: int | None = None,
         idempotency_key: str | None = None,
+        provider: str | None = None,
     ) -> PaymentResult:
         if idempotency_key:
             existing = self.repo.get_payment_by_idempotency_key(idempotency_key)
@@ -55,13 +63,16 @@ class PaymentService:
         if payment_amount <= 0:
             raise PaymentServiceError("payment amount must be positive", status_code=422)
 
-        provider = self._provider(channel)
+        payment_provider = self._provider(provider or settings.payment_provider, channel)
         out_trade_no = self._new_out_trade_no()
-        provider_payload = provider.create_payment(
-            out_trade_no=out_trade_no,
-            amount_fen=payment_amount,
-            subject=order.title,
-        )
+        try:
+            provider_payload = payment_provider.create_payment(
+                out_trade_no=out_trade_no,
+                amount_fen=payment_amount,
+                subject=order.title,
+            )
+        except PaymentProviderError as error:
+            raise PaymentServiceError(str(error), status_code=error.status_code) from error
         payment = self.repo.create_payment(
             order_id=order.id,
             channel=channel,
@@ -106,8 +117,11 @@ class PaymentService:
         payment = self._get_payment(payment_id)
         order = self._get_order(payment.order_id)
         self._ensure_order_access(order, operator_user_id)
-        provider = self._provider(payment.channel)
-        provider_result = provider.query(payment.out_trade_no, mark_paid=mark_paid)
+        provider = self._provider_for_payment(payment)
+        try:
+            provider_result = provider.query(payment.out_trade_no, mark_paid=mark_paid)
+        except PaymentProviderError as error:
+            raise PaymentServiceError(str(error), status_code=error.status_code) from error
         payment.query_count += 1
         if mark_paid:
             self._mark_paid(payment, order, provider_trade_no, raw_payload or provider_result, operator_user_id)
@@ -134,6 +148,7 @@ class PaymentService:
         if payment is None:
             raise PaymentServiceError("payment not found", status_code=404)
         order = self._get_order(payment.order_id)
+        self._validate_notify_payment(payment, raw_payload)
         self._mark_paid(payment, order, provider_trade_no, raw_payload, operator_user_id=None)
         self.repo.db.flush()
         self.repo.db.refresh(payment)
@@ -145,7 +160,10 @@ class PaymentService:
         self._ensure_order_access(order, operator_user_id)
         if payment.status == "paid":
             raise PaymentServiceError("paid payment can not be closed", status_code=409)
-        provider_result = self._provider(payment.channel).close(payment.out_trade_no)
+        try:
+            provider_result = self._provider_for_payment(payment).close(payment.out_trade_no)
+        except PaymentProviderError as error:
+            raise PaymentServiceError(str(error), status_code=error.status_code) from error
         payment.status = "closed"
         order.payment_status = "closed"
         payment.event_summary = {**(payment.event_summary or {}), "closed": datetime.now(UTC).isoformat()}
@@ -179,15 +197,18 @@ class PaymentService:
         if payment.status != "paid":
             raise PaymentServiceError("only paid payment can be refunded", status_code=409)
 
-        amount = refund_amount_fen or payment.amount_fen
+        amount = payment.amount_fen if refund_amount_fen is None else refund_amount_fen
         if amount <= 0 or amount > payment.amount_fen:
             raise PaymentServiceError("invalid refund amount", status_code=422)
 
-        provider_result = self._provider(payment.channel).refund(
-            out_trade_no=payment.out_trade_no,
-            refund_amount_fen=amount,
-            reason=reason or "用户申请退款",
-        )
+        try:
+            provider_result = self._provider_for_payment(payment).refund(
+                out_trade_no=payment.out_trade_no,
+                refund_amount_fen=amount,
+                reason=reason or "用户申请退款",
+            )
+        except PaymentProviderError as error:
+            raise PaymentServiceError(str(error), status_code=error.status_code) from error
         refund = self.repo.create_refund(
             payment_id=payment.id,
             order_id=order.id,
@@ -219,6 +240,97 @@ class PaymentService:
         self.repo.db.refresh(payment)
         self.repo.db.refresh(refund)
         return RefundResult(payment=payment, refund=refund)
+
+    def query_refund(
+        self,
+        payment_id: uuid.UUID,
+        operator_user_id: uuid.UUID,
+        provider_refund_no: str,
+    ) -> dict[str, Any]:
+        """查询退款；参数为支付 ID、操作人和渠道退款号；返回 provider 规范化结果。"""
+        payment = self._get_payment(payment_id)
+        order = self._get_order(payment.order_id)
+        self._ensure_order_access(order, operator_user_id)
+        try:
+            return self._provider_for_payment(payment).query_refund(
+                payment.out_trade_no,
+                provider_refund_no,
+            )
+        except PaymentProviderError as error:
+            raise PaymentServiceError(str(error), status_code=error.status_code) from error
+
+    def verify_notify(
+        self,
+        provider: str,
+        headers: dict[str, str],
+        payload: dict[str, Any],
+        channel: str | None = None,
+    ) -> dict[str, Any]:
+        """承接通知验签；参数为 provider、回调头和载荷；返回验签后的规范化结果。"""
+        try:
+            return self._provider(provider, channel or provider).verify_notify(headers, payload)
+        except PaymentProviderError as error:
+            raise PaymentServiceError(str(error), status_code=error.status_code) from error
+
+    def _validate_notify_payment(self, payment: Payment, raw_payload: dict[str, Any]) -> None:
+        """校验支付通知不变量，避免真实回调被验签后直接误标成功。"""
+        if payment.status in {"closed", "refunded", "partial_refunded"}:
+            raise PaymentServiceError("payment notify can not update terminal payment", status_code=409)
+
+        verified_notify = raw_payload.get("verified_notify")
+        if isinstance(verified_notify, dict):
+            if verified_notify.get("verified") is not True:
+                raise PaymentServiceError("payment notify verification failed", status_code=400)
+
+            provider = str(verified_notify.get("provider") or "").strip()
+            expected_provider = self._provider_name_for_payment(payment)
+            if provider and provider != expected_provider:
+                raise PaymentServiceError("payment notify provider mismatch", status_code=400)
+
+            channel = str(verified_notify.get("channel") or "").strip()
+            if channel and channel != payment.channel:
+                raise PaymentServiceError("payment notify channel mismatch", status_code=400)
+
+            notify_out_trade_no = _first_string(
+                verified_notify.get("out_trade_no"),
+                verified_notify.get("outTradeNo"),
+            )
+            if notify_out_trade_no and notify_out_trade_no != payment.out_trade_no:
+                raise PaymentServiceError("payment notify out_trade_no mismatch", status_code=400)
+
+            amount_fen = _first_int(
+                verified_notify.get("amount_fen"),
+                verified_notify.get("amountFen"),
+            )
+            if amount_fen is not None and amount_fen != payment.amount_fen:
+                raise PaymentServiceError("payment notify amount mismatch", status_code=400)
+
+            status = str(verified_notify.get("status") or "").strip().lower()
+            if expected_provider != "local" and status not in {
+                "paid",
+                "success",
+                "trade_success",
+                "trade_finished",
+            }:
+                raise PaymentServiceError("payment notify is not paid", status_code=409)
+
+            notify_id = _first_string(
+                verified_notify.get("notify_id"),
+                verified_notify.get("notifyId"),
+                verified_notify.get("event_id"),
+                verified_notify.get("eventId"),
+            )
+            if notify_id:
+                seen_ids = list((payment.event_summary or {}).get("notifyIds") or [])
+                if notify_id in seen_ids:
+                    return
+                payment.event_summary = {
+                    **(payment.event_summary or {}),
+                    "notifyIds": seen_ids[-19:] + [notify_id],
+                }
+
+        if payment.status not in {"pending", "paid"}:
+            raise PaymentServiceError("payment can not be marked paid in current status", status_code=409)
 
     def _mark_paid(
         self,
@@ -268,11 +380,49 @@ class PaymentService:
         if operator_user_id not in {order.buyer_user_id, order.seller_user_id}:
             raise PaymentServiceError("order access denied", status_code=403)
 
-    def _provider(self, channel: str) -> LocalPaymentProvider:
+    def _provider_for_payment(self, payment: Payment) -> PaymentProvider:
+        return self._provider(self._provider_name_for_payment(payment), payment.channel)
+
+    def _provider_name_for_payment(self, payment: Payment) -> str:
+        payload = payment.channel_payload or {}
+        return str(payload.get("provider") or "local")
+
+    def _provider(self, provider: str, channel: str) -> PaymentProvider:
+        """选择支付 provider；参数为 provider 和支付渠道；返回生命周期接口实现。"""
+        provider = provider.strip().lower()
+        if provider == "local":
+            return self._local_provider(channel)
+        if provider in {"alipay", "wechat_pay"}:
+            if channel != provider:
+                raise PaymentServiceError("real payment provider must match channel", status_code=422)
+            return RealPaymentProvider(real_provider_config(provider, settings))
+        raise PaymentServiceError("unsupported payment provider", status_code=422)
+
+    def _local_provider(self, channel: str) -> LocalPaymentProvider:
+        """创建本地 provider；参数为支付渠道；返回本地生命周期接口实现。"""
         try:
             return LocalPaymentProvider(channel)
         except ValueError as error:
             raise PaymentServiceError(str(error), status_code=422) from error
 
     def _new_out_trade_no(self) -> str:
+        """生成商户订单号；无参数；返回带 MIMI 前缀的唯一字符串。"""
         return f"MIMI{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}{uuid.uuid4().hex[:8].upper()}"
+
+
+def _first_string(*values: Any) -> str | None:
+    for value in values:
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _first_int(*values: Any) -> int | None:
+    for value in values:
+        if value is None:
+            continue
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+    return None

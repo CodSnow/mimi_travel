@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 将咪咪出行按“本地可验收完整实现”交付为 H5 优先的完整产品闭环。
+**Goal:** 将咪咪出行按“本地可验收完整实现”交付为 H5 优先的完整产品闭环，并继续推进真实三方服务和小程序完整闭环。
 
-**Architecture:** 后端事实源先行，业务主数据进入 Python FastAPI + PostgreSQL。TypeScript BFF 作为前端唯一入口，H5 只消费 TS BFF API。支付、AI、地图、附件和通知通过本地 provider 完成验收，并预留真实 provider 替换边界。
+**Architecture:** 后端事实源先行，业务主数据进入 Python FastAPI + PostgreSQL。TypeScript BFF 作为前端唯一入口，H5 只消费 TS BFF API。支付、AI、地图、附件和通知先通过本地 provider 完成本地验收；真实支付宝/微信、真实 DeepSeek、真实地图 SDK 和小程序完整功能对齐均列为后续必须完成的真实闭环，不再仅作为可选替换边界。
 
 **Tech Stack:** React 19、Rsbuild、Express 5、TypeScript、FastAPI、SQLAlchemy、Alembic、PostgreSQL、pnpm、Docker Compose。
 
@@ -81,6 +81,38 @@
 - Python 测试在用户确认的 Python 环境或 Docker Compose 中通过。
 - Docker Compose 全链路健康。
 - 小程序现有 `/api/state`、`/api/knowledge`、`/api/ask` 演示链路保持可用。
+
+### Phase 7: Profile and Review Persistence
+
+**Goal:** 将宠物档案、常用地址、服务者入驻申请、评价和照护反馈接入 Python/PostgreSQL，并修复 H5 辅助页的真实读写链路。
+
+**Exit Criteria:**
+
+- 宠物档案和常用地址在 H5 可创建、读取，并写入 PostgreSQL。
+- 服务者入驻申请、评价、照护反馈进入 Python/PostgreSQL 主事实源。
+- 评价和反馈具备基本权限校验，防止非订单参与者写入。
+
+### Phase 8: Real Provider Closures
+
+**Goal:** 将此前本地 provider 验收能力升级为真实业务闭环。
+
+**Exit Criteria:**
+
+- 真实支付宝和微信支付闭环：商户配置、签名验签、预下单、同步查询、异步回调、关闭、退款、退款查询、幂等和回调重放防护可验收。
+- 真实 DeepSeek 闭环：配置管理、超时、重试、降级、本地 RAG 引用融合、敏感信息过滤和请求日志脱敏可验收。
+- 真实地图 SDK 闭环：高德/百度 SDK 初始化、定位授权、路线规划、导航唤起、Web fallback 和无权限降级可验收。
+- 小程序完整功能对齐：登录、首页、需求、报价、订单、支付、消息、政策、宠物档案、地址、退款、投诉、服务者工作台、管理端必要能力与 H5 共用 TS BFF API。
+
+## Known Unfinished Scope
+
+- 服务者档期仍需补齐独立 `provider_schedules` 表、维护 API 和 H5 工作台入口。
+- 宠物档案仍需补齐体型、默认携带方式等字段。
+- 全额、订金、尾款支付场景需要在 H5 形成完整验收闭环。
+- 退款申请页需要从争议入口升级为真实退款单申请和支付退款链路。
+- H5 管理后台需要补齐审核、处理投诉争议、订单/退款明细、下架异常服务者等操作闭环。
+- 服务者工作台和报价管理需要补齐服务者身份下的可接需求、报价、接单、服务反馈工作流。
+- 办证/托运协助需要从泛化服务类型升级为材料、节点、状态跟踪和陪同确认闭环。
+- 真实支付宝/微信、真实 DeepSeek、真实地图 SDK 和小程序完整功能对齐均未完成，后续必须作为正式交付范围实现。
 
 ## Execution Rules
 

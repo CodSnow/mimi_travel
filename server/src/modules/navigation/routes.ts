@@ -5,6 +5,10 @@ import { NavigationService } from '../../services/navigation-service.js';
 export function createNavigationRouter(navigationService: NavigationService): Router {
   const router = Router();
 
+  router.get('/api/navigation/sdk-config', (_req, res) => {
+    return res.json(navigationService.getSdkConfig());
+  });
+
   router.get('/api/navigation/link', (req, res) => {
     const fromLat = Number(req.query.fromLat);
     const fromLng = Number(req.query.fromLng);

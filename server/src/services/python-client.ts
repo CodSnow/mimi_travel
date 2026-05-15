@@ -35,6 +35,7 @@ import type {
   PaymentResponse,
   RefundCreateRequest,
   RefundCreateResponse,
+  RefundQueryRequest,
 } from '../internal-dto/payments.js';
 import type {
   ConversationDetailResponse,
@@ -291,6 +292,10 @@ export class PythonClient {
 
   async refundPayment(paymentId: string, payload: RefundCreateRequest): Promise<RefundCreateResponse> {
     return this.post(`/internal/payments/${paymentId}/refund`, payload);
+  }
+
+  async queryRefund(paymentId: string, payload: RefundQueryRequest): Promise<Record<string, unknown>> {
+    return this.post(`/internal/payments/${paymentId}/refund/query`, payload);
   }
 
   async notifyPayment(payload: PaymentNotifyRequest): Promise<PaymentResponse> {
