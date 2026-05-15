@@ -26,8 +26,6 @@ worktrees/
 client/references/
 mp/.swc/
 
-
-node_modules/
 build/
 dist/
 data/*
@@ -39,17 +37,12 @@ data/backup/knowledge.json
 data/db.json
 data/domain.json
 coverage/
-.DS_Store
 *.log
 *.db
 .env*
-!.env.example
 service-account.json
 firebase-applet-config.json
 
 
 /__pycache__/
 .idea
-.superpowers/
-client/references/
-mp/.swc/
