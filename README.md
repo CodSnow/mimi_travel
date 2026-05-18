@@ -110,8 +110,8 @@ MIMI_SMOKE_SKIP_FRONTEND=1 pnpm run smoke:compose
 
 ## 关键文档
 
-- [当前实施计划.md](./当前实施计划.md)
-- [部署文档.md](./部署文档.md)
+- [当前实施计划.md](docs/当前实施计划.md)
+- [部署文档.md](docs/部署文档.md)
 - [H5 完整实现设计](./docs/superpowers/specs/2026-05-13-mimi-travel-complete-h5-design.md)
 - [H5 完整实现总路线图](./docs/superpowers/plans/2026-05-13-mimi-travel-complete-h5-roadmap.md)
 - [Phase 8 Real Provider Closures](./docs/superpowers/plans/2026-05-15-real-provider-closures.md)
